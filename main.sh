@@ -12,16 +12,19 @@ cmd_build() {
   fi
 
   echo "Building container"
-  echo docker build ${tags} .
+  docker build ${tags} .
 }
 
 cmd_integ() {
+  docker stop calm_localstripe_test || echo 'no'
   docker build -t calm_localstripe:test .
-  docker run -d --rm calm_localstripe:test
-  timeout=5; while [ $((timeout--)) -ge 0 ]; do
-    nc -z -w 1 localhost 8420; r=$?; [ $r -eq 0 ] && break; sleep 1;
-  done;
-  ./test.sh
+  docker run -d --rm --name calm_localstripe_test calm_localstripe:test
+  sleep 5
+  r=0
+  docker exec -i calm_localstripe_test ./test.sh || r=$?
+  docker stop calm_localstripe_test
+  docker rmi calm_localstripe:test
+  [ $r -ne 0 ] && echo 'Tests failed' && exit $r
   echo "INTEG PASSED"
 }
 
