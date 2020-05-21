@@ -1,0 +1,6 @@
+---
+  build:
+    build_command: ./main.sh build
+    test_command: ./main.sh integ
+  deploy: false
+  
