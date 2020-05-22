@@ -230,8 +230,6 @@ class StripeObject(object):
                     do_expand(path, i)
             else:
                 k, path = path.split('.', 1) if '.' in path else (path, None)
-                if not k in obj:
-                    return
                 if type(obj[k]) is str:
                     id = obj[k]
                     cls = StripeObject._get_class_for_id(id)
@@ -244,7 +242,7 @@ class StripeObject(object):
         except KeyError as e:
             raise UserError(400, 'Bad expand %s' % e)
         except TypeError:
-            return obj
+            pass
 
         return obj
 
