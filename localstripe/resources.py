@@ -225,14 +225,12 @@ class StripeObject(object):
                     obj[prop] = value
 
         def do_expand(path, obj):
-            if obj is None:
-                obj = {}
             if type(obj) is list:
                 for i in obj:
                     do_expand(path, i)
             else:
                 k, path = path.split('.', 1) if '.' in path else (path, None)
-                if not k in obj:
+                if not obj or not k in obj:
                     return
                 if type(obj[k]) is str:
                     id = obj[k]
