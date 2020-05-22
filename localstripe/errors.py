@@ -27,11 +27,11 @@ def json_response(*args, **kwargs):
 
 
 class UserError(Exception):
-    def __init__(self, code, message=None, contents=None):
+    def __init__(self, code, message=None, contents=None, errtype='invalid_request_error'):
         Exception.__init__(self)
         self.code = code
         self.body = {'error': contents or {}}
-        self.body['error']['type'] = 'invalid_request_error'
+        self.body['error']['type'] = errtype
         if message is not None:
             self.body['error']['message'] = message
 

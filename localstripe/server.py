@@ -25,11 +25,12 @@ import socket
 from aiohttp import web
 
 from .resources import Charge, Coupon, Customer, \
-                       Event, Invoice, InvoiceItem, PaymentIntent, \
-                       PaymentMethod, Plan, Product, Refund, SetupIntent, \
-                       Source, Subscription, SubscriptionItem, TaxRate, \
-                       Token, extra_apis, store
+    Event, Invoice, InvoiceItem, PaymentIntent, \
+    PaymentMethod, Plan, Product, Refund, SetupIntent, \
+    Source, Subscription, SubscriptionItem, TaxRate, \
+    Token, extra_apis, store
 from .errors import UserError
+from .test_tokens import create_test_tokens
 from .webhooks import register_webhook
 
 
@@ -302,6 +303,7 @@ async def config_webhook(request):
 
 async def flush_store(request):
     store.clear()
+    create_test_tokens()
     return web.Response()
 
 
@@ -327,6 +329,7 @@ def start():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 
+    create_test_tokens()
     web.run_app(app, sock=sock, access_log=logger)
 
 
