@@ -393,6 +393,7 @@ class Charge(StripeObject):
         self.currency = currency
         self.customer = customer
         self.description = description
+        self.dispute = None
         self.invoice = None
         self.metadata = metadata or {}
         self.status = 'pending'
@@ -918,7 +919,8 @@ class Invoice(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        customer_obj = Customer._api_retrieve(
+            customer)  # to return 404 if not existant
 
         if subscription is not None:
             subscription_obj = Subscription._api_retrieve(subscription)
@@ -931,6 +933,7 @@ class Invoice(StripeObject):
         super().__init__()
 
         self.customer = customer
+        self.customer_email = customer_obj.email
         self.subscription = subscription
         self.tax_percent = tax_percent
         self.default_tax_rates = default_tax_rates
