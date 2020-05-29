@@ -759,7 +759,9 @@ class Customer(StripeObject):
         obj = cls._api_retrieve(id)
         source_obj = cls._api_retrieve_source(id, source_id)
 
-        type(source_obj)._api_delete(source_id)
+        source_cls = type(source_obj)
+        if source_cls is not Card:
+            source_cls._api_delete(source_id)
         obj.sources._list.remove(source_obj)
 
         if obj.default_source == source_obj.id:
@@ -2499,10 +2501,10 @@ class Subscription(StripeObject):
                 quantity=items[0]['quantity'],
                 tax_rates=items[0]['tax_rates']))
 
-        create_an_invoice = \
-            self.trial_end is None and self.trial_period_days is None
-        if create_an_invoice:
+        if self.trial_end is None and self.trial_period_days is None:
             self._create_invoice()
+        else:
+            self._create_trial_invoice()
 
         schedule_webhook(Event('customer.subscription.created', self))
 
@@ -2518,7 +2520,10 @@ class Subscription(StripeObject):
     def current_period_end(self):
         return self.items._list[0]._current_period()['end']
 
-    def _create_invoice(self):
+    def _create_trial_invoice(self):
+        self._create_invoice(is_trial=True)
+
+    def _create_invoice(self, is_trial=False):
         pending_items = [ii for ii in InvoiceItem._api_list_all(
             None, customer=self.customer, limit=99)._list
             if ii.invoice is None]
@@ -2535,6 +2540,10 @@ class Subscription(StripeObject):
             default_tax_rates=[tr.id
                                for tr in (self.default_tax_rates or [])],
             date=self.current_period_start)
+
+        if is_trial:
+            return
+
         invoice._finalize()
         if invoice.status != 'paid':  # 0 € invoices are already 'paid'
             Invoice._api_pay_invoice(invoice.id)
