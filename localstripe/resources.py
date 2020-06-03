@@ -891,8 +891,8 @@ class Invoice(StripeObject):
                  items=[], date=None, description=None,
                  simulation=False, upcoming=False,
                  tax_percent=None,  # deprecated
-                 default_tax_rates=None,
-                 **kwargs):
+                 default_tax_rates=None, is_trial=False,
+                 ** kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -968,7 +968,7 @@ class Invoice(StripeObject):
             if coupon is not None:
                 self.coupon = Coupon._api_retrieve(coupon)
                 previous = self._previous_invoice()
-                if upcoming and previous and self.coupon.duration == 'once':
+                if upcoming and previous and previous.total > 0 and self.coupon.duration == 'once':
                     self.coupon = None
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
@@ -991,6 +991,7 @@ class Invoice(StripeObject):
 
         self._draft = True
         self._voided = False
+        self._is_trial = is_trial
 
         if not simulation and not upcoming:
             if subscription is not None:
@@ -1017,10 +1018,14 @@ class Invoice(StripeObject):
 
     @property
     def subtotal(self):
+        if self._is_trial:
+            return 0
         return sum([self._apply_coupon(il.amount) for il in self.lines._list])
 
     @property
     def tax(self):
+        if self._is_trial:
+            return 0
         if self.tax_percent is not None:  # legacy support
             return int(self.subtotal * self.tax_percent / 100.0)
 
@@ -2539,7 +2544,8 @@ class Subscription(StripeObject):
             tax_percent=self.tax_percent,
             default_tax_rates=[tr.id
                                for tr in (self.default_tax_rates or [])],
-            date=self.current_period_start)
+            date=self.current_period_start,
+            is_trial=is_trial)
 
         if is_trial:
             return
