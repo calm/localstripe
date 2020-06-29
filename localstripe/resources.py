@@ -2729,8 +2729,10 @@ class Subscription(StripeObject):
 
         if cancel_at_period_end is not None:
             self.cancel_at_period_end = cancel_at_period_end
-            # NOTE: not sure if this is exactly correct but it makes our tests pass
-            self.canceled_at = int(time.time())
+            if cancel_at_period_end:
+                self.canceled_at = int(time.time())
+            else:
+                self.canceled_at = None
 
         if cancel_at is not None:
             self.cancel_at = cancel_at
