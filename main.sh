@@ -28,12 +28,34 @@ cmd_integ() {
   echo "INTEG PASSED"
 }
 
+cmd_local_setup() {
+  python3 -m venv .venv
+  source .venv/bin/activate
+  pip3 install -r requirements.txt
+  if ! which entr 2>/dev/null ; then
+    echo '"entr" not installed. Install it with "brew install entr"'
+    exit 1
+  fi
+}
+
+cmd_local_dev() {
+  if ! source .venv/bin/activate ; then
+    echo "virtual env not setup. run local_setup first" >&2
+    exit 1
+  fi
+  find . -name '*.py' | entr -r python3 -m localstripe --from-scratch --port 8421
+}
+
 main() {
   case "$1" in
     build)
-      cmd_build ${@:2};;
+      cmd_build "${@:2}";;
     integ)
-      cmd_integ ${@:2};;
+      cmd_integ "${@:2}";;
+    local_setup)
+      cmd_local_setup "${@:2}";;
+    local_dev)
+      cmd_local_dev "${@:2}";;
     *)
       help; exit 1
   esac
