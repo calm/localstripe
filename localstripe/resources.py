@@ -314,13 +314,7 @@ class Card(StripeObject):
 
     @property
     def iin(self):
-        if self.brand == 'Amex':
-            # Amex corportate test iin
-            if self._card_number == '371449635398431':
-                return '371449'
-            # Amex personal test iin
-            return '378282'
-        return None
+        return self._card_number[:6]
 
     # Behold, the hackiest of hacks
     def _get_fingerprint(self):
