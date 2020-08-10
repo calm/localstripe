@@ -2618,6 +2618,8 @@ class Subscription(StripeObject):
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
 
+        now = int(time.time())
+
         # Legacy support (stripe-php still uses these parameters instead of
         # providing `items: [...]`):
         if items is None and plan is not None:
@@ -2635,7 +2637,7 @@ class Subscription(StripeObject):
         try:
             if trial_end is not None:
                 if trial_end == 'now':
-                    trial_end = int(time.time())
+                    trial_end = now
                 assert type(trial_end) is int
                 assert trial_end > 1500000000
             if tax_percent is not None:
@@ -2745,7 +2747,7 @@ class Subscription(StripeObject):
         if cancel_at_period_end is not None:
             self.cancel_at_period_end = cancel_at_period_end
             if cancel_at_period_end:
-                self.canceled_at = int(time.time())
+                self.canceled_at = now
             else:
                 self.canceled_at = None
 
@@ -2757,7 +2759,8 @@ class Subscription(StripeObject):
         # be manually created using the POST /invoices route.
         create_an_invoice = self.plan.billing_scheme == 'per_unit' and (
             self.plan.interval != old_plan.interval or
-            self.plan.interval_count != old_plan.interval_count)
+            self.plan.interval_count != old_plan.interval_count or
+            trial_end == now)
         if create_an_invoice:
             self._create_invoice()
 
