@@ -2769,6 +2769,7 @@ class Subscription(StripeObject):
     def _api_delete(cls, id):
         obj = Subscription._api_retrieve(id)
         obj.ended_at = int(time.time())
+        obj.canceled_at = obj.ended_at
         obj.status = 'canceled'
         schedule_webhook(Event('customer.subscription.deleted', obj))
         return obj
