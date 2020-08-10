@@ -865,6 +865,22 @@ class Event(StripeObject):
         self.api_version = '2017-08-15'
 
     @classmethod
+    def _api_list_all(cls, url, type=None, limit=None):
+        try:
+            if type is not None:
+                assert (isinstance(type, str) and
+                        re.match(r'^([a-z_\*]+\.)+[a-z_\*]+$', type))
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Event, cls)._api_list_all(url, limit=limit)
+        if type is not None:
+            matcher = wildcard_matcher(type)
+            li._list = [e for e in li._list if matcher(e.type)]
+        li._list.sort(key=lambda i: i.created, reverse=True)
+        return li
+
+    @classmethod
     def _api_create(cls, **data):
         raise UserError(405, 'Method Not Allowed')
 
@@ -875,6 +891,11 @@ class Event(StripeObject):
     @classmethod
     def _api_delete(cls, id):
         raise UserError(405, 'Method Not Allowed')
+
+
+def wildcard_matcher(pattern: str):
+    pat_re = re.compile(pattern.replace('.', r'\.').replace('*', '.+'))
+    return lambda val: pat_re.match(val)
 
 
 class Invoice(StripeObject):
