@@ -2763,6 +2763,7 @@ class Subscription(StripeObject):
             trial_end == now)
         if create_an_invoice:
             self._create_invoice()
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     @classmethod
     def _api_delete(cls, id):
