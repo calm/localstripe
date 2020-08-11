@@ -865,6 +865,22 @@ class Event(StripeObject):
         self.api_version = '2017-08-15'
 
     @classmethod
+    def _api_list_all(cls, url, type=None, limit=None):
+        try:
+            if type is not None:
+                assert (isinstance(type, str) and
+                        re.match(r'^([a-z_\*]+\.)+[a-z_\*]+$', type))
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Event, cls)._api_list_all(url, limit=limit)
+        if type is not None:
+            matcher = wildcard_matcher(type)
+            li._list = [e for e in li._list if matcher(e.type)]
+        li._list.sort(key=lambda i: i.created, reverse=True)
+        return li
+
+    @classmethod
     def _api_create(cls, **data):
         raise UserError(405, 'Method Not Allowed')
 
@@ -875,6 +891,11 @@ class Event(StripeObject):
     @classmethod
     def _api_delete(cls, id):
         raise UserError(405, 'Method Not Allowed')
+
+
+def wildcard_matcher(pattern: str):
+    pat_re = re.compile(pattern.replace('.', r'\.').replace('*', '.+'))
+    return lambda val: pat_re.match(val)
 
 
 class Invoice(StripeObject):
@@ -2597,6 +2618,8 @@ class Subscription(StripeObject):
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
 
+        now = int(time.time())
+
         # Legacy support (stripe-php still uses these parameters instead of
         # providing `items: [...]`):
         if items is None and plan is not None:
@@ -2614,7 +2637,7 @@ class Subscription(StripeObject):
         try:
             if trial_end is not None:
                 if trial_end == 'now':
-                    trial_end = int(time.time())
+                    trial_end = now
                 assert type(trial_end) is int
                 assert trial_end > 1500000000
             if tax_percent is not None:
@@ -2724,7 +2747,7 @@ class Subscription(StripeObject):
         if cancel_at_period_end is not None:
             self.cancel_at_period_end = cancel_at_period_end
             if cancel_at_period_end:
-                self.canceled_at = int(time.time())
+                self.canceled_at = now
             else:
                 self.canceled_at = None
 
@@ -2736,14 +2759,17 @@ class Subscription(StripeObject):
         # be manually created using the POST /invoices route.
         create_an_invoice = self.plan.billing_scheme == 'per_unit' and (
             self.plan.interval != old_plan.interval or
-            self.plan.interval_count != old_plan.interval_count)
+            self.plan.interval_count != old_plan.interval_count or
+            trial_end == now)
         if create_an_invoice:
             self._create_invoice()
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     @classmethod
     def _api_delete(cls, id):
         obj = Subscription._api_retrieve(id)
         obj.ended_at = int(time.time())
+        obj.canceled_at = obj.ended_at
         obj.status = 'canceled'
         schedule_webhook(Event('customer.subscription.deleted', obj))
         return obj
