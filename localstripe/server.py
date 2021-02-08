@@ -26,7 +26,7 @@ from aiohttp import web
 
 from .resources import Charge, Coupon, Customer, \
     Event, Invoice, InvoiceItem, PaymentIntent, \
-    PaymentMethod, Plan, Product, Refund, SetupIntent, \
+    PaymentMethod, Plan, Price, Product, Refund, SetupIntent, \
     Source, Subscription, SubscriptionItem, TaxRate, \
     Token, extra_apis, store
 from .errors import UserError
@@ -266,7 +266,7 @@ for method, url, func in extra_apis:
 
 
 for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
-            PaymentIntent, PaymentMethod, Plan, Product, Refund, SetupIntent,
+            PaymentIntent, PaymentMethod, Plan, Price, Product, Refund, SetupIntent,
             Source, Subscription, SubscriptionItem, TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),

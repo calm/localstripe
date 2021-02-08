@@ -2097,6 +2097,111 @@ class Plan(StripeObject):
         return Product._api_retrieve(self.product).statement_descriptor
 
 
+class Price(StripeObject):
+    object = 'price'
+    _id_prefix = 'price_'
+
+    def __init__(self, id=None, metadata=None, amount=None, product=None,
+                 currency=None, recurring=None,
+                 trial_period_days=None, nickname=None, usage_type='licensed',
+                 billing_scheme='per_unit', tiers=None, tiers_mode=None,
+                 unit_amount=0, flat_amount=0,
+                 active=True,
+                 # Legacy arguments, before Stripe API 2018-02-05:
+                 name=None, statement_descriptor=None,
+                 **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        # Support Stripe API <= 2018-02-05:
+        if product is None and name is not None:
+            product = dict(name=name, metadata=metadata,
+                           statement_descriptor=statement_descriptor)
+
+        amount = try_convert_to_int(amount)
+        unit_amount = try_convert_to_int(unit_amount)
+        trial_period_days = try_convert_to_int(trial_period_days)
+        active = try_convert_to_bool(active)
+        interval_count = 1
+        try:
+            assert id is None or type(id) is str and id
+            assert type(active) is bool
+            assert billing_scheme in ['per_unit', 'tiered']
+            if billing_scheme == 'per_unit':
+                assert type(amount) is int and amount >= 0
+            else:
+                assert tiers_mode in ['graduated', 'volume']
+                assert type(tiers) is list and len(tiers) > 0
+                for t in tiers:
+                    assert \
+                        type(t) is dict and 'up_to' in t and \
+                        (t['up_to'] == 'inf' or
+                         type(try_convert_to_int(t['up_to'])) is int)
+                    unit_amount_tier = try_convert_to_int(t.get('unit_amount', 0))
+                    assert type(unit_amount_tier) is int and unit_amount_tier >= 0
+                    flat_amount_tier = try_convert_to_int(t.get('flat_amount', 0))
+                    assert type(flat_amount_tier) is int and flat_amount_tier >= 0
+            assert type(currency) is str and currency
+            if recurring:
+                assert type(recurring) is dict and 'interval' in recurring and \
+                    'interval_count' in recurring and \
+                    recurring['interval'] in ('day', 'week', 'month', 'year')
+                interval_count = try_convert_to_int(recurring.get('interval_count', 0))
+                assert type(interval_count) is int and interval_count >= 0
+            if trial_period_days is not None:
+                assert type(trial_period_days) is int
+            if nickname is not None:
+                assert type(nickname) is str
+            assert usage_type in ['licensed', 'metered']
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        if type(product) is str:
+            Product._api_retrieve(product)  # to return 404 if not existant
+        else:
+            product = Product(type='service', **product).id
+
+        # All exceptions must be raised before this point.
+        super().__init__(id)
+
+        self.metadata = metadata or {}
+        self.product = product
+        self.active = active
+        self.amount = amount
+        self.currency = currency
+        self.recurring = recurring
+        self.trial_period_days = trial_period_days
+        self.nickname = nickname
+        self.usage_type = usage_type
+        self.billing_scheme = billing_scheme
+        self.tiers = tiers
+        self.tiers_mode = tiers_mode
+
+        schedule_webhook(Event('price.created', self))
+
+    @property
+    def name(self):  # Support Stripe API <= 2018-02-05
+        return Product._api_retrieve(self.product).name
+
+    @property
+    def statement_descriptor(self):  # Support Stripe API <= 2018-02-05
+        return Product._api_retrieve(self.product).statement_descriptor
+
+    @classmethod
+    def _api_list_all(cls, url, active=True, product=None, limit=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        li = List(url, limit=limit)
+        li._list = [value for key, value in store.items()
+                    if key.startswith(cls.object + ':')]
+        if active:
+            li._list = list(filter(lambda x: x.active == True, li._list))
+        if product:
+            li._list = list(filter(lambda x: x.product == product,li._list))
+        return li
+
+
 class Product(StripeObject):
     object = 'product'
     _id_prefix = 'prod_'
