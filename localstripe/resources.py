@@ -651,6 +651,20 @@ class Customer(StripeObject):
             '/v1/customers/' + self.id + '/subscriptions', customer=self.id)
 
     @classmethod
+    def _api_list_all(cls, url, email=None, limit=None):
+        try:
+            if email is not None:
+                # minimal email validation
+                assert type(email) is str and email.index('@') > 0
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Customer, cls)._api_list_all(url, limit=limit)
+        if email is not None:
+            li._list = [c for c in li._list if c.email == email]
+        return li
+
+    @classmethod
     def _api_create(cls, source=None, **data):
         obj = super()._api_create(**data)
 
