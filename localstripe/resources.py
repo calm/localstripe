@@ -305,6 +305,7 @@ class Card(StripeObject):
         self.funding = 'credit'
         self.name = name
         self.tokenization_method = None
+            metadata=self.metadata
 
         self.customer = None
 
@@ -1399,6 +1400,7 @@ class Invoice(StripeObject):
             pi = PaymentIntent(amount=obj.total,
                                currency=obj.currency,
                                customer=obj.customer,
+                               metadata=obj.metadata,
                                payment_method=pm.id)
             obj.payment_intent = pi.id
             pi.invoice = obj.id
@@ -1690,6 +1692,7 @@ class PaymentIntent(StripeObject):
                         currency=self.currency,
                         customer=self.customer,
                         source=self.payment_method)
+                        metadata=self.metadata,
         self.charges._list.append(charge)
         charge._trigger_payment(on_success, on_failure_now, on_failure_later)
 
@@ -1883,6 +1886,7 @@ class PaymentMethod(StripeObject):
 
         self.type = type
         self.billing_details = billing_details or {}
+        self.metadata = metadata or {}
 
         if self.type == 'card':
             self._card_number = card['number']
@@ -1909,7 +1913,6 @@ class PaymentMethod(StripeObject):
             }
 
         self.customer = None
-        self.metadata = metadata or {}
 
     def _requires_authentication(self):
         if self.type == 'card':
@@ -2569,6 +2572,7 @@ class Subscription(StripeObject):
         invoice = Invoice(
             customer=self.customer,
             subscription=self.id,
+            metadata=self.metadata,
             items=pending_items,
             tax_percent=self.tax_percent,
             default_tax_rates=[tr.id
