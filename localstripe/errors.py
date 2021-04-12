@@ -28,7 +28,7 @@ def json_response(*args, **kwargs):
 
 class UserError(Exception):
     def __init__(self, code, message=None, contents=None, errtype='invalid_request_error'):
-        Exception.__init__(self)
+        Exception.__init__(self, message)
         self.code = code
         self.body = {'error': contents or {}}
         self.body['error']['type'] = errtype
