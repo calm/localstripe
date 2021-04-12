@@ -502,6 +502,19 @@ class Charge(StripeObject):
         obj._trigger_payment(on_success)
         return obj
 
+    @classmethod
+    def _api_list_all(cls, url, customer=None, limit=None):
+        try:
+            if customer is not None:
+                assert type(customer) is str and customer.startswith('cus_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Charge, cls)._api_list_all(url, limit=limit)
+        if customer is not None:
+            li._list = [c for c in li._list if c.customer == customer]
+        return li
+
     @property
     def paid(self):
         return self.status == 'succeeded'
