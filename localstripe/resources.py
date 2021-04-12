@@ -251,7 +251,7 @@ class Card(StripeObject):
     object = 'card'
     _id_prefix = 'card_'
 
-    def __init__(self, source=None, **kwargs):
+    def __init__(self, source=None, customer=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -305,9 +305,9 @@ class Card(StripeObject):
         self.funding = 'credit'
         self.name = name
         self.tokenization_method = None
+        self.customer = customer
             metadata=self.metadata
 
-        self.customer = None
 
     @property
     def last4(self):
@@ -3013,9 +3013,7 @@ class Token(StripeObject):
 
         # If this raises, abort and don't create the token
         card['object'] = 'card'
-        card_obj = Card(source=card)
-        if customer is not None:
-            card_obj.customer = customer
+        card_obj = Card(source=card, customer=customer)
 
         # All exceptions must be raised before this point.
         super().__init__(id)
