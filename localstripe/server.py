@@ -24,11 +24,10 @@ import socket
 
 from aiohttp import web
 
-from .resources import Charge, Coupon, Customer, \
-    Event, Invoice, InvoiceItem, PaymentIntent, \
-    PaymentMethod, Plan, Product, Refund, SetupIntent, \
-    Source, Subscription, SubscriptionItem, TaxRate, \
-    Token, extra_apis, store
+from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
+    Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
+    Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
+    TaxRate, Token, extra_apis, store
 from .errors import UserError
 from .test_tokens import create_test_tokens
 from .webhooks import register_webhook
@@ -193,7 +192,17 @@ async def auth_middleware(request, handler):
     return await handler(request)
 
 
-app = web.Application(middlewares=[error_middleware, auth_middleware])
+@web.middleware
+async def save_store_middleware(request, handler):
+    try:
+        return await handler(request)
+    finally:
+        if request.method in ('PUT', 'POST', 'DELETE'):
+            store.dump_to_disk()
+
+
+app = web.Application(middlewares=[error_middleware, auth_middleware,
+                                   save_store_middleware])
 app.on_response_prepare.append(add_cors_headers)
 
 
@@ -265,9 +274,10 @@ for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
 
-for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
-            PaymentIntent, PaymentMethod, Plan, Product, Refund, SetupIntent,
-            Source, Subscription, SubscriptionItem, TaxRate, Token):
+for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
+            InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Product,
+            Refund, SetupIntent, Source, Subscription, SubscriptionItem,
+            TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),
