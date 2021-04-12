@@ -306,7 +306,21 @@ class Card(StripeObject):
         self.name = name
         self.tokenization_method = None
         self.customer = customer
+
+        # create equivalent Payment method object
+        PaymentMethod(
+            id=self.id,
+            customer=self.customer,
+            type='card',
+            card={
+                'number': number,
+                'exp_month': exp_month,
+                'exp_year': exp_year,
+                'cvc': cvc,
+            },
+            billing_details={},
             metadata=self.metadata
+        )
 
 
     @property
@@ -316,6 +330,11 @@ class Card(StripeObject):
     @property
     def iin(self):
         return self._card_number[:6]
+
+    def _set_customer(self, customer):
+        self.customer = customer
+        pm = PaymentMethod._api_retrieve(self.id)
+        pm.customer = customer
 
     # Behold, the hackiest of hacks
     def _get_fingerprint(self):
@@ -752,7 +771,7 @@ class Customer(StripeObject):
                             {'code': 'card_declined', 'decline_code': source_obj._decline_code()})
 
         if isinstance(source_obj, Card):
-            source_obj.customer = id
+            source_obj._set_customer(id)
 
         obj.sources._list.append(source_obj)
 
@@ -1847,7 +1866,7 @@ class PaymentMethod(StripeObject):
     object = 'payment_method'
     _id_prefix = 'pm_'
 
-    def __init__(self, type=None, billing_details=None, card=None,
+    def __init__(self, id=None, customer=None, type=None, billing_details=None, card=None,
                  sepa_debit=None, metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -1883,9 +1902,10 @@ class PaymentMethod(StripeObject):
                                 {'code': 'invalid_expiry_year'})
 
         # All exceptions must be raised before this point.
-        super().__init__()
+        super().__init__(id)
 
         self.type = type
+        self.customer = customer
         self.billing_details = billing_details or {}
         self.metadata = metadata or {}
 
@@ -1913,7 +1933,6 @@ class PaymentMethod(StripeObject):
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
 
-        self.customer = None
 
     def _requires_authentication(self):
         if self.type == 'card':
@@ -1996,6 +2015,16 @@ class PaymentMethod(StripeObject):
         # https://stripe.com/docs/payments/payment-methods#transitioning
         # You can retrieve all saved compatible payment instruments through the
         # Payment Methods API.
+
+        # first, try to find a direct record
+        try:
+            return super()._api_retrieve(id)
+        except UserError as err:
+            if err.code != 404:
+                raise
+
+        # otherwise, lookup other legacy type
+
         if id.startswith('tok_'):
             token = Token._api_retrieve(id)
             return token.card
