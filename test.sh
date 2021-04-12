@@ -3,8 +3,10 @@
 
 set -eux
 
-HOST=http://localhost:8420
+HOST=${HOST:-http://localhost:8420}
 SK=sk_test_12345
+
+curl -X DELETE $HOST/_config/data
 
 cus=$(curl -sSf -u $SK: $HOST/v1/customers \
           -d email=james.robinson@example.com \
