@@ -251,7 +251,7 @@ class Card(StripeObject):
     object = 'card'
     _id_prefix = 'card_'
 
-    def __init__(self, source=None, **kwargs):
+    def __init__(self, source=None, customer=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -305,8 +305,23 @@ class Card(StripeObject):
         self.funding = 'credit'
         self.name = name
         self.tokenization_method = None
+        self.customer = customer
 
-        self.customer = None
+        # create equivalent Payment method object
+        PaymentMethod(
+            id=self.id,
+            customer=self.customer,
+            type='card',
+            card={
+                'number': number,
+                'exp_month': exp_month,
+                'exp_year': exp_year,
+                'cvc': cvc,
+            },
+            billing_details={},
+            metadata=self.metadata
+        )
+
 
     @property
     def last4(self):
@@ -315,6 +330,11 @@ class Card(StripeObject):
     @property
     def iin(self):
         return self._card_number[:6]
+
+    def _set_customer(self, customer):
+        self.customer = customer
+        pm = PaymentMethod._api_retrieve(self.id)
+        pm.customer = customer
 
     # Behold, the hackiest of hacks
     def _get_fingerprint(self):
@@ -343,7 +363,7 @@ class Charge(StripeObject):
 
     def __init__(self, amount=None, currency=None, description=None,
                  metadata=None, customer=None, source=None, capture=True,
-                 receipt_email=None,
+                 receipt_email=None, invoice=None,
                  **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -388,7 +408,7 @@ class Charge(StripeObject):
         self.customer = customer
         self.description = description
         self.dispute = None
-        self.invoice = None
+        self.invoice = invoice
         self.metadata = metadata or {}
         self.status = 'pending'
         self.receipt_email = None
@@ -481,6 +501,19 @@ class Charge(StripeObject):
 
         obj._trigger_payment(on_success)
         return obj
+
+    @classmethod
+    def _api_list_all(cls, url, customer=None, limit=None):
+        try:
+            if customer is not None:
+                assert type(customer) is str and customer.startswith('cus_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Charge, cls)._api_list_all(url, limit=limit)
+        if customer is not None:
+            li._list = [c for c in li._list if c.customer == customer]
+        return li
 
     @property
     def paid(self):
@@ -651,6 +684,20 @@ class Customer(StripeObject):
             '/v1/customers/' + self.id + '/subscriptions', customer=self.id)
 
     @classmethod
+    def _api_list_all(cls, url, email=None, limit=None):
+        try:
+            if email is not None:
+                # minimal email validation
+                assert type(email) is str and email.index('@') > 0
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Customer, cls)._api_list_all(url, limit=limit)
+        if email is not None:
+            li._list = [c for c in li._list if c.email == email]
+        return li
+
+    @classmethod
     def _api_create(cls, source=None, **data):
         obj = super()._api_create(**data)
 
@@ -737,7 +784,7 @@ class Customer(StripeObject):
                             {'code': 'card_declined', 'decline_code': source_obj._decline_code()})
 
         if isinstance(source_obj, Card):
-            source_obj.customer = id
+            source_obj._set_customer(id)
 
         obj.sources._list.append(source_obj)
 
@@ -1385,6 +1432,7 @@ class Invoice(StripeObject):
             pi = PaymentIntent(amount=obj.total,
                                currency=obj.currency,
                                customer=obj.customer,
+                               metadata=obj.metadata,
                                payment_method=pm.id)
             obj.payment_intent = pi.id
             pi.invoice = obj.id
@@ -1675,7 +1723,9 @@ class PaymentIntent(StripeObject):
         charge = Charge(amount=self.amount,
                         currency=self.currency,
                         customer=self.customer,
-                        source=self.payment_method)
+                        source=self.payment_method,
+                        metadata=self.metadata,
+                        invoice=self.invoice)
         self.charges._list.append(charge)
         charge._trigger_payment(on_success, on_failure_now, on_failure_later)
 
@@ -1829,7 +1879,7 @@ class PaymentMethod(StripeObject):
     object = 'payment_method'
     _id_prefix = 'pm_'
 
-    def __init__(self, type=None, billing_details=None, card=None,
+    def __init__(self, id=None, customer=None, type=None, billing_details=None, card=None,
                  sepa_debit=None, metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -1860,15 +1910,17 @@ class PaymentMethod(StripeObject):
             raise UserError(400, 'Bad request')
 
         if type == 'card':
-            if not (2019 <= card['exp_year'] < 2100):
+            if not (2018 <= card['exp_year'] < 2100):
                 raise UserError(400, 'Bad request',
                                 {'code': 'invalid_expiry_year'})
 
         # All exceptions must be raised before this point.
-        super().__init__()
+        super().__init__(id)
 
         self.type = type
+        self.customer = customer
         self.billing_details = billing_details or {}
+        self.metadata = metadata or {}
 
         if self.type == 'card':
             self._card_number = card['number']
@@ -1894,8 +1946,6 @@ class PaymentMethod(StripeObject):
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
 
-        self.customer = None
-        self.metadata = metadata or {}
 
     def _requires_authentication(self):
         if self.type == 'card':
@@ -1978,6 +2028,16 @@ class PaymentMethod(StripeObject):
         # https://stripe.com/docs/payments/payment-methods#transitioning
         # You can retrieve all saved compatible payment instruments through the
         # Payment Methods API.
+
+        # first, try to find a direct record
+        try:
+            return super()._api_retrieve(id)
+        except UserError as err:
+            if err.code != 404:
+                raise
+
+        # otherwise, lookup other legacy type
+
         if id.startswith('tok_'):
             token = Token._api_retrieve(id)
             return token.card
@@ -2661,6 +2721,7 @@ class Subscription(StripeObject):
         invoice = Invoice(
             customer=self.customer,
             subscription=self.id,
+            metadata=self.metadata,
             items=pending_items,
             tax_percent=self.tax_percent,
             default_tax_rates=[tr.id
@@ -3100,9 +3161,7 @@ class Token(StripeObject):
 
         # If this raises, abort and don't create the token
         card['object'] = 'card'
-        card_obj = Card(source=card)
-        if customer is not None:
-            card_obj.customer = customer
+        card_obj = Card(source=card, customer=customer)
 
         # All exceptions must be raised before this point.
         super().__init__(id)
