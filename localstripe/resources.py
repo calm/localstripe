@@ -2101,7 +2101,7 @@ class Price(StripeObject):
     object = 'price'
     _id_prefix = 'price_'
 
-    def __init__(self, id=None, metadata=None, amount=None, product=None,
+    def __init__(self, id=None, metadata=None, product=None,
                  currency=None, recurring=None,
                  trial_period_days=None, nickname=None, usage_type='licensed',
                  billing_scheme='per_unit', tiers=None, tiers_mode=None,
@@ -2118,7 +2118,6 @@ class Price(StripeObject):
             product = dict(name=name, metadata=metadata,
                            statement_descriptor=statement_descriptor)
 
-        amount = try_convert_to_int(amount)
         unit_amount = try_convert_to_int(unit_amount)
         trial_period_days = try_convert_to_int(trial_period_days)
         active = try_convert_to_bool(active)
@@ -2128,7 +2127,7 @@ class Price(StripeObject):
             assert type(active) is bool
             assert billing_scheme in ['per_unit', 'tiered']
             if billing_scheme == 'per_unit':
-                assert type(amount) is int and amount >= 0
+                assert type(unit_amount) is int and unit_amount >= 0
             else:
                 assert tiers_mode in ['graduated', 'volume']
                 assert type(tiers) is list and len(tiers) > 0
@@ -2137,10 +2136,12 @@ class Price(StripeObject):
                         type(t) is dict and 'up_to' in t and \
                         (t['up_to'] == 'inf' or
                          type(try_convert_to_int(t['up_to'])) is int)
-                    unit_amount_tier = try_convert_to_int(t.get('unit_amount', 0))
-                    assert type(unit_amount_tier) is int and unit_amount_tier >= 0
-                    flat_amount_tier = try_convert_to_int(t.get('flat_amount', 0))
-                    assert type(flat_amount_tier) is int and flat_amount_tier >= 0
+                    unit_amount_tiers = try_convert_to_int(t.get('unit_amount', 0))
+                    assert type(unit_amount_tiers) is int and unit_amount_tiers >= 0
+                    t['unit_amount'] = unit_amount_tiers
+                    flat_amount_tiers = try_convert_to_int(t.get('flat_amount', 0))
+                    assert type(flat_amount_tiers) is int and flat_amount_tiers >= 0
+                    t['flat_amount'] = flat_amount_tiers
             assert type(currency) is str and currency
             if recurring:
                 assert type(recurring) is dict and 'interval' in recurring and \
@@ -2167,7 +2168,7 @@ class Price(StripeObject):
         self.metadata = metadata or {}
         self.product = product
         self.active = active
-        self.amount = amount
+        self.unit_amount = unit_amount if unit_amount != '' else None 
         self.currency = currency
         self.recurring = recurring
         self.trial_period_days = trial_period_days
@@ -2175,7 +2176,7 @@ class Price(StripeObject):
         self.usage_type = usage_type
         self.billing_scheme = billing_scheme
         self.tiers = tiers
-        self.tiers_mode = tiers_mode
+        self.tiers_mode = tiers_mode if tiers_mode != '' else None
 
         schedule_webhook(Event('price.created', self))
 
