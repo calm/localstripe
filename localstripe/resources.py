@@ -567,6 +567,8 @@ class Coupon(StripeObject):
             if duration == 'repeating':
                 assert type(duration_in_months) is int
                 assert duration_in_months > 0
+            if max_redemptions is not None:
+                assert type(max_redemptions) is int
             if redeem_by is not None:
                 assert type(redeem_by) is int
                 assert redeem_by > 0
