@@ -33,8 +33,7 @@ cmd_local_setup() {
   source .venv/bin/activate
   pip3 install -r requirements.txt
   if ! which entr 2>/dev/null ; then
-    echo '"entr" not installed. Install it with "brew install entr"'
-    exit 1
+    brew install entr
   fi
 }
 
@@ -43,7 +42,7 @@ cmd_local_dev() {
     echo "virtual env not setup. run local_setup first" >&2
     exit 1
   fi
-  find . -name '*.py' | entr -r python3 -m localstripe --from-scratch --port 8421
+  find . -name '*.py' -a -not -path './.venv/*' | python3 -m localstripe --from-scratch --port 8421
 }
 
 main() {
