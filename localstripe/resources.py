@@ -542,7 +542,7 @@ class Coupon(StripeObject):
 
     def __init__(self, id=None, name=None, duration=None, amount_off=None,
                  percent_off=None, currency=None, metadata=None,
-                 duration_in_months=None, **kwargs):
+                 duration_in_months=None, max_redemptions=None, redeem_by=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -567,6 +567,9 @@ class Coupon(StripeObject):
             if duration == 'repeating':
                 assert type(duration_in_months) is int
                 assert duration_in_months > 0
+            if redeem_by is not None:
+                assert type(redeem_by) is int
+                assert redeem_by > 0
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -580,8 +583,8 @@ class Coupon(StripeObject):
         self.currency = currency
         self.duration = duration
         self.duration_in_months = duration_in_months
-        self.max_redemptions = None
-        self.redeem_by = None
+        self.max_redemptions = max_redemptions
+        self.redeem_by = redeem_by
         self.times_redeemed = 0
         self.valid = True
 
@@ -2228,7 +2231,7 @@ class Price(StripeObject):
         self.metadata = metadata or {}
         self.product = product
         self.active = active
-        self.unit_amount = unit_amount if unit_amount != '' else None 
+        self.unit_amount = unit_amount if unit_amount != '' else None
         self.currency = currency
         self.recurring = recurring
         self.trial_period_days = trial_period_days
