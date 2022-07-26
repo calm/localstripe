@@ -588,7 +588,8 @@ class Coupon(StripeObject):
                     f'redeem_by expected to be an int, got: {type(redeem_by)}'
                 assert redeem_by > 0,\
                     f'redeem_by greater than 0 expected, got: {redeem_by}'
-        except AssertionError:
+        except AssertionError as ae:
+            print(f'AssertionError: {ae}')
             raise UserError(400, 'Bad request')
 
         # All exceptions must be raised before this point.
