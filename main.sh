@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
 set -e
+if [[ -z "${short_hash+1}" ]] ; then
+  short_hash=$(git rev-parse HEAD | cut -c1-8 )
+  echo "short_hash is not set; use the first 8 characters of the latest git hash ${short_hash}"
+fi
 
 cmd_build() {
   git_branch=$(git rev-parse --abbrev-ref HEAD)
-  short_hash=$(git rev-parse --short HEAD)
   tags="-t 864879987165.dkr.ecr.us-east-1.amazonaws.com/calm/localstripe:${short_hash}"
 
   if [ $git_branch == 'calm' ]; then
@@ -33,8 +36,7 @@ cmd_local_setup() {
   source .venv/bin/activate
   pip3 install -r requirements.txt
   if ! which entr 2>/dev/null ; then
-    echo '"entr" not installed. Install it with "brew install entr"'
-    exit 1
+    brew install entr
   fi
 }
 
@@ -43,7 +45,7 @@ cmd_local_dev() {
     echo "virtual env not setup. run local_setup first" >&2
     exit 1
   fi
-  find . -name '*.py' | entr -r python3 -m localstripe --from-scratch --port 8421
+  find . -name '*.py' -a -not -path './*venv/*' | entr -r python3 -m localstripe --from-scratch --port 8421
 }
 
 main() {
