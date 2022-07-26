@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
 set -e
+if [[ -z "${short_hash+1}" ]] ; then
+  echo "short_hash is required"
+  exit 1
+fi
 
 cmd_build() {
   git_branch=$(git rev-parse --abbrev-ref HEAD)
-  short_hash=$(git rev-parse --short HEAD)
   tags="-t 864879987165.dkr.ecr.us-east-1.amazonaws.com/calm/localstripe:${short_hash}"
 
   if [ $git_branch == 'calm' ]; then
