@@ -159,7 +159,7 @@ class StripeObject(object):
         if key not in store.keys():
             raise UserError(404, 'Not Found')
         del store[key]
-        return {"deleted": True, "id": id}
+        return {'deleted': True, 'id': id}
 
     @classmethod
     def _api_list_all(cls, url, limit=None, **kwargs):
@@ -549,45 +549,47 @@ class Coupon(StripeObject):
         amount_off = try_convert_to_int(amount_off)
         percent_off = try_convert_to_float(percent_off)
         duration_in_months = try_convert_to_int(duration_in_months)
+        max_redemptions = try_convert_to_int(max_redemptions)
+        redeem_by = try_convert_to_int(redeem_by)
         try:
             assert type(id) is str and id, \
-                f"id is required and must be a string, got: {id}"
+                f'id is required and must be a string, got: {id}'
             assert (amount_off is None) != (percent_off is None), \
-                "either amount_off or percent_off must be defined"
+                'either amount_off or percent_off must be defined'
+            assert duration in ('forever', 'once', 'repeating'), \
+                f'duration must be one of forever, once, repeating, got: {duration}'
             if name is not None:
                 assert type(name) is str and name, \
-                    f"name is expected to be a str, got: {name}"
+                    f'name is expected to be a str, got: {name}'
             if amount_off is not None:
                 assert type(amount_off) is int and amount_off >= 0, \
-                    f"amount_off expected to be an int greater than 0, got: {amount_off}"
+                    f'amount_off expected to be an int greater than 0, got: {amount_off}'
             if percent_off is not None:
                 if type(percent_off) is str:
                     percent_off = float(percent_off)
                 assert type(percent_off) is float or type(percent_off) is int, \
-                    f"percent_off be of type float or int, got: {type(percent_off)}"
+                    f'percent_off expected to be of type float or int, got: {percent_off}'
                 assert 0 <= percent_off <= 100, \
-                    f"percent_off must be between 0 and 100, got: {percent_off}"
-            assert duration in ('forever', 'once', 'repeating'), \
-                f"duration must be one of 'forever', 'once', 'repeating', got {duration} "
+                    f'percent_off must be between 0 and 100, got: {percent_off}'
             if amount_off is not None:
-                assert type(currency) is str and currency, f"currency is expected, got: {currency}"
+                assert type(currency) is str and currency, f'currency is expected, got: {currency}'
             if duration == 'repeating':
                 assert type(duration_in_months) is int, \
-                    f"duration_in_months expected to be an int, got: {type(duration_in_months)}"
+                    f'duration_in_months expected to be an int, got: {type(duration_in_months)}'
                 assert duration_in_months > 0, \
-                    f"duration_in_months greater than 0 expected, got: {duration_in_months}"
+                    f'duration_in_months greater than 0 expected, got: {duration_in_months}'
             if max_redemptions is not None:
                 assert type(max_redemptions) is int, \
-                    f"max_redemptions expected to be an int, got: {type(max_redemptions)}"
+                    f'max_redemptions expected to be an int, got: {type(max_redemptions)}'
                 assert max_redemptions > 0, \
-                    f"max_redemptions greater than 0 expected, got: {max_redemptions}"
+                    f'max_redemptions greater than 0 expected, got: {max_redemptions}'
             if redeem_by is not None:
                 assert type(redeem_by) is int, \
-                    f"redeem_by expected to be an int, got: {type(redeem_by)}"
+                    f'redeem_by expected to be an int, got: {type(redeem_by)}'
                 assert redeem_by > 0,\
-                    f"redeem_by greater than 0 expected, got: {redeem_by}"
-        except AssertionError as assertionErr:
-            raise UserError(400, 'Bad request', {"original_error": assertionErr})
+                    f'redeem_by greater than 0 expected, got: {redeem_by}'
+        except AssertionError:
+            raise UserError(400, 'Bad request')
 
         # All exceptions must be raised before this point.
         super().__init__(id)
