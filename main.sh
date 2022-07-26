@@ -2,8 +2,8 @@
 
 set -e
 if [[ -z "${short_hash+1}" ]] ; then
-  echo "short_hash is required"
-  exit 1
+  short_hash=$(git rev-parse HEAD | cut -c1-8 )
+  echo "short_hash is not set use first 8 characters of the last git hash"
 fi
 
 cmd_build() {
