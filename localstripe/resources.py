@@ -542,7 +542,8 @@ class Coupon(StripeObject):
 
     def __init__(self, id=None, name=None, duration=None, amount_off=None,
                  percent_off=None, currency=None, metadata=None,
-                 duration_in_months=None, max_redemptions=None, redeem_by=None, **kwargs):
+                 duration_in_months=None, max_redemptions=None, redeem_by=None,
+                 **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -557,32 +558,40 @@ class Coupon(StripeObject):
             assert (amount_off is None) != (percent_off is None), \
                 'either amount_off or percent_off must be defined'
             assert duration in ('forever', 'once', 'repeating'), \
-                f'duration must be one of forever, once, repeating, got: {duration}'
+                f'duration must be one of forever, once, repeating, got: ' \
+                f'{duration}'
             if name is not None:
                 assert type(name) is str and name, \
                     f'name is expected to be a str, got: {name}'
             if amount_off is not None:
                 assert type(amount_off) is int and amount_off >= 0, \
-                    f'amount_off expected to be an int greater than 0, got: {amount_off}'
+                    f'amount_off expected to be an int greater than 0, got: ' \
+                    f'{amount_off}'
             if percent_off is not None:
                 if type(percent_off) is str:
                     percent_off = float(percent_off)
                 assert type(percent_off) is float or type(percent_off) is int, \
-                    f'percent_off expected to be of type float or int, got: {percent_off}'
+                    f'percent_off expected to be of type float or int, got: ' \
+                    f'{percent_off}'
                 assert 0 <= percent_off <= 100, \
                     f'percent_off must be between 0 and 100, got: {percent_off}'
             if amount_off is not None:
-                assert type(currency) is str and currency, f'currency is expected, got: {currency}'
+                assert type(currency) is str and currency, \
+                    f'currency is expected, got: {currency}'
             if duration == 'repeating':
                 assert type(duration_in_months) is int, \
-                    f'duration_in_months expected to be an int, got: {type(duration_in_months)}'
+                    f'duration_in_months expected to be an int, got: ' \
+                    f'{type(duration_in_months)}'
                 assert duration_in_months > 0, \
-                    f'duration_in_months greater than 0 expected, got: {duration_in_months}'
+                    f'duration_in_months greater than 0 expected, got: ' \
+                    f'{duration_in_months}'
             if max_redemptions is not None:
                 assert type(max_redemptions) is int, \
-                    f'max_redemptions expected to be an int, got: {type(max_redemptions)}'
+                    f'max_redemptions expected to be an int, got: ' \
+                    f'{type(max_redemptions)}'
                 assert max_redemptions > 0, \
-                    f'max_redemptions greater than 0 expected, got: {max_redemptions}'
+                    f'max_redemptions greater than 0 expected, got: ' \
+                    f'{max_redemptions}'
             if redeem_by is not None:
                 assert type(redeem_by) is int, \
                     f'redeem_by expected to be an int, got: {type(redeem_by)}'
@@ -1005,7 +1014,7 @@ class Invoice(StripeObject):
             raise UserError(400, 'Bad request')
 
         customer_obj = Customer._api_retrieve(
-            customer)  # to return 404 if not existant
+            customer)  # to return 404 if not existent
 
         if subscription is not None:
             subscription_obj = Subscription._api_retrieve(subscription)
@@ -1051,7 +1060,8 @@ class Invoice(StripeObject):
             if coupon is not None:
                 self.coupon = Coupon._api_retrieve(coupon)
                 previous = self._previous_invoice()
-                if upcoming and previous and previous.total > 0 and self.coupon.duration == 'once':
+                if upcoming and previous and previous.total > 0 \
+                        and self.coupon.duration == 'once':
                     self.coupon = None
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
@@ -1084,7 +1094,8 @@ class Invoice(StripeObject):
 
     def _previous_invoice(self):
         previous = Invoice._api_list_all(
-            None, customer=self.customer, subscription=self.subscription, limit=99)
+            None, customer=self.customer,
+            subscription=self.subscription, limit=99)
         for invoice in reversed(previous._list):
             if invoice.id == self.id:
                 continue
@@ -1097,7 +1108,8 @@ class Invoice(StripeObject):
         if type(self.coupon.amount_off) is int:
             return amount - self.coupon.amount_off
         if type(self.coupon.percent_off) is float:
-            return amount - math.ceil(amount * (self.coupon.percent_off / 100.0))
+            return amount - math.ceil(
+                amount * (self.coupon.percent_off / 100.0))
 
     @property
     def subtotal(self):
@@ -1217,8 +1229,9 @@ class Invoice(StripeObject):
         subscription_proration_date = \
             try_convert_to_int(subscription_proration_date)
         try:
-            assert (type(customer) is str and customer.startswith('cus_')) or (type(
-                subscription) is str and subscription.startswith('sub_'))
+            assert (type(customer) is str and customer.startswith('cus_')) \
+                   or (type(subscription) is str
+                       and subscription.startswith('sub_'))
             if default_tax_rates is not None:
                 assert type(default_tax_rates) is list
                 assert all(type(txr) is str and txr.startswith('txr_')
@@ -1247,15 +1260,15 @@ class Invoice(StripeObject):
         if customer is None:
             subscription_obj = Subscription._api_retrieve(subscription)
             customer = subscription_obj.customer
-        # return 404 if not existant
+        # return 404 if not existent
         customer_obj = Customer._api_retrieve(customer)
         if subscription_items:
             for si in subscription_items:
-                Plan._api_retrieve(si['plan'])  # to return 404 if not existant
-                # To return 404 if not existant:
+                Plan._api_retrieve(si['plan'])  # to return 404 if not existent
+                # To return 404 if not existent:
                 if si['tax_rates'] is not None:
                     [TaxRate._api_retrieve(tr) for tr in si['tax_rates']]
-            # To return 404 if not existant:
+            # To return 404 if not existent:
             if subscription_default_tax_rates is not None:
                 [TaxRate._api_retrieve(tr)
                  for tr in subscription_default_tax_rates]
@@ -1399,10 +1412,10 @@ class Invoice(StripeObject):
 
         li = super(Invoice, cls)._api_list_all(url, limit=limit)
         if customer is not None:
-            Customer._api_retrieve(customer)  # to return 404 if not existant
+            Customer._api_retrieve(customer)  # to return 404 if not existent
             li._list = [i for i in li._list if i.customer == customer]
         if subscription is not None:
-            # to return 404 if not existant
+            # to return 404 if not existent
             Subscription._api_retrieve(subscription)
             li._list = [i for i in li._list if i.subscription == subscription]
         li._list.sort(key=lambda i: i.date, reverse=True)
@@ -1542,13 +1555,13 @@ class InvoiceItem(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        Customer._api_retrieve(customer)  # to return 404 if not existent
         if invoice is not None:
-            Invoice._api_retrieve(invoice)  # to return 404 if not existant
+            Invoice._api_retrieve(invoice)  # to return 404 if not existent
         if plan is not None:
-            plan = Plan._api_retrieve(plan)  # to return 404 if not existant
+            plan = Plan._api_retrieve(plan)  # to return 404 if not existent
         if tax_rates is not None:
-            # To return 404 if not existant:
+            # To return 404 if not existent:
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
 
         # All exceptions must be raised before this point.
@@ -1579,7 +1592,7 @@ class InvoiceItem(StripeObject):
         li = super(InvoiceItem, cls)._api_list_all(url, limit=limit)
         li._list = [ii for ii in li._list if ii.invoice is None]
         if customer is not None:
-            Customer._api_retrieve(customer)  # to return 404 if not existant
+            Customer._api_retrieve(customer)  # to return 404 if not existent
             li._list = [ii for ii in li._list if ii.customer == customer]
         li._list.sort(key=lambda i: i.date, reverse=True)
         return li
@@ -1701,9 +1714,9 @@ class PaymentIntent(StripeObject):
             raise UserError(400, 'Bad request')
 
         if customer:
-            Customer._api_retrieve(customer)  # to return 404 if not existant
+            Customer._api_retrieve(customer)  # to return 404 if not existent
         if payment_method:
-            # return 404 if not existant
+            # return 404 if not existent
             PaymentMethod._api_retrieve(payment_method)
 
         # All exceptions must be raised before this point.
@@ -1900,7 +1913,8 @@ class PaymentMethod(StripeObject):
     object = 'payment_method'
     _id_prefix = 'pm_'
 
-    def __init__(self, id=None, customer=None, type=None, billing_details=None, card=None,
+    def __init__(self, id=None, customer=None, type=None,
+                 billing_details=None, card=None,
                  sepa_debit=None, metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -2021,7 +2035,7 @@ class PaymentMethod(StripeObject):
             raise UserError(400, 'Bad request')
 
         obj = cls._api_retrieve(id)
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        Customer._api_retrieve(customer)  # to return 404 if not existent
 
         if obj._attaching_is_declined():
             raise UserError(402, 'Your card was declined.',
@@ -2077,7 +2091,7 @@ class PaymentMethod(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        Customer._api_retrieve(customer)  # to return 404 if not existent
 
         li = super(PaymentMethod, cls)._api_list_all(url, limit=limit)
         li._list = [pm for pm in li._list
@@ -2146,7 +2160,7 @@ class Plan(StripeObject):
             raise UserError(400, 'Bad request')
 
         if type(product) is str:
-            Product._api_retrieve(product)  # to return 404 if not existant
+            Product._api_retrieve(product)  # to return 404 if not existent
         else:
             product = Product(type='service', **product).id
 
@@ -2228,7 +2242,8 @@ class Price(StripeObject):
                 assert type(recurring) is dict and 'interval' in recurring and \
                     'interval_count' in recurring and \
                     recurring['interval'] in ('day', 'week', 'month', 'year')
-                interval_count = try_convert_to_int(recurring.get('interval_count', 0))
+                interval_count = try_convert_to_int(recurring.get(
+                    'interval_count', 0))
                 assert type(interval_count) is int and interval_count >= 0
             if trial_period_days is not None:
                 assert type(trial_period_days) is int
@@ -2239,7 +2254,7 @@ class Price(StripeObject):
             raise UserError(400, 'Bad request')
 
         if type(product) is str:
-            Product._api_retrieve(product)  # to return 404 if not existant
+            Product._api_retrieve(product)  # to return 404 if not existent
         else:
             product = Product(type='service', **product).id
 
@@ -2337,7 +2352,8 @@ class Refund(StripeObject):
     object = 'refund'
     _id_prefix = 're_'
 
-    def __init__(self, charge=None, amount=None, metadata=None, reason=None, **kwargs):
+    def __init__(self, charge=None, amount=None, metadata=None,
+                 reason=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2378,7 +2394,7 @@ class Refund(StripeObject):
 
         li = super(Refund, cls)._api_list_all(url, limit=limit)
         if charge is not None:
-            Charge._api_retrieve(charge)  # to return 404 if not existant
+            Charge._api_retrieve(charge)  # to return 404 if not existent
             li._list = [r for r in li._list if r.charge == charge]
         li._list.sort(key=lambda i: i.date, reverse=True)
         return li
@@ -2644,18 +2660,20 @@ class Subscription(StripeObject):
             raise UserError(500, 'Not implemented')
 
         customer_obj = Customer._api_retrieve(
-            customer)  # to return 404 if not existant
+            customer)  # to return 404 if not existent
         payment_obj = customer_obj._get_default_payment_method_or_source()
-        if payment_obj._requires_authentication() and payment_behavior == 'error_if_incomplete':
-            # TODO: not sure if card_error is the exact right error, but it makes the tests pass
+        if payment_obj._requires_authentication() \
+                and payment_behavior == 'error_if_incomplete':
+            # TODO: not sure if card_error is the exact right error,
+            #  but it makes the tests pass
             raise UserError(400, 'Bad request', {}, 'card_error')
 
         for item in items:
-            Plan._api_retrieve(item['plan'])  # to return 404 if not existant
-            # To return 404 if not existant:
+            Plan._api_retrieve(item['plan'])  # to return 404 if not existent
+            # To return 404 if not existent:
             if item['tax_rates'] is not None:
                 [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
-        # To return 404 if not existant:
+        # To return 404 if not existent:
         if default_tax_rates is not None:
             default_tax_rates = [TaxRate._api_retrieve(tr)
                                  for tr in default_tax_rates]
@@ -2672,7 +2690,8 @@ class Subscription(StripeObject):
             _end_date += timedelta(days=trial_period_days)
             trial_end = int(_end_date.timestamp())
             status = 'trialing'
-            if payment_obj is not None and payment_obj._requires_authentication():
+            if payment_obj is not None \
+                    and payment_obj._requires_authentication():
                 pending_setup_intent = SetupIntent(customer=customer)
                 pending_setup_intent.status = 'requires_action'
 
@@ -2876,10 +2895,10 @@ class Subscription(StripeObject):
             if not items[0].get('plan', None):
                 items[0]['plan'] = self.plan.id
 
-            # To return 404 if not existant:
+            # To return 404 if not existent:
             Plan._api_retrieve(items[0]['plan'])
 
-            # To return 404 if not existant:
+            # To return 404 if not existent:
             if items[0]['tax_rates'] is not None:
                 [TaxRate._api_retrieve(tr) for tr in items[0]['tax_rates']]
 
@@ -2976,12 +2995,13 @@ class Subscription(StripeObject):
 
         li = super(Subscription, cls)._api_list_all(url, limit=limit)
         if status is None:
-            li._list = [sub for sub in li._list if hasattr(sub, 'status') and sub.status not in
+            li._list = [sub for sub in li._list if hasattr(sub, 'status')
+                        and sub.status not in
                         ('canceled', 'incomplete_expired')]
         elif status != 'all':
             li._list = [sub for sub in li._list if sub.status == status]
         if customer is not None:
-            Customer._api_retrieve(customer)  # to return 404 if not existant
+            Customer._api_retrieve(customer)  # to return 404 if not existent
             li._list = [sub for sub in li._list if sub.customer == customer]
         return li
 
@@ -3008,8 +3028,8 @@ class SubscriptionItem(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        plan = Plan._api_retrieve(plan)  # to return 404 if not existant
-        # To return 404 if not existant:
+        plan = Plan._api_retrieve(plan)  # to return 404 if not existent
+        # To return 404 if not existent:
         if tax_rates is not None:
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
 
@@ -3103,7 +3123,7 @@ class TaxId(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        Customer._api_retrieve(customer)  # to return 404 if not existent
 
         # All exceptions must be raised before this point.
         super().__init__()
