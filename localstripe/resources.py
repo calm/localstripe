@@ -1096,8 +1096,8 @@ class Invoice(StripeObject):
             return amount
         if type(self.coupon.amount_off) is int:
             return amount - self.coupon.amount_off
-        if type(self.coupon.percent_off) is int:
-            return amount - math.ceil(amount * (self.coupon.percent_off / 100))
+        if type(self.coupon.percent_off) is float:
+            return amount - math.ceil(amount * (self.coupon.percent_off / 100.0))
 
     @property
     def subtotal(self):
