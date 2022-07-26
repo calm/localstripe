@@ -45,7 +45,7 @@ cmd_local_dev() {
     echo "virtual env not setup. run local_setup first" >&2
     exit 1
   fi
-  find . -name '*.py' -a -not -path './.venv/*' | python3 -m localstripe --from-scratch --port 8421
+  find . -name '*.py' | python3 -m localstripe --from-scratch --port 8421
 }
 
 main() {
