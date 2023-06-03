@@ -18,7 +18,7 @@ import argparse
 import base64
 import json
 import logging
-import os.path
+import os
 import re
 import socket
 
@@ -31,6 +31,7 @@ from .resources import Charge, Coupon, Customer, \
     Token, extra_apis, store
 from .errors import UserError
 from .test_tokens import create_test_tokens
+from .seed_data import seed_data
 from .webhooks import register_webhook
 
 
@@ -195,7 +196,7 @@ async def auth_middleware(request, handler):
 
 app = web.Application(middlewares=[error_middleware, auth_middleware])
 app.on_response_prepare.append(add_cors_headers)
-
+app.on_startup.append(seed_data)
 
 def api_create(cls, url):
     async def f(request):
@@ -329,9 +330,10 @@ def start():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 
+    app['seed_dir'] = os.environ.get('SEED_DIR', 'fixtures')
+
     create_test_tokens()
     web.run_app(app, sock=sock, access_log=logger)
-
 
 if __name__ == '__main__':
     start()

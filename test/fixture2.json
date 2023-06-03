@@ -1,0 +1,5 @@
+
+{
+  "prices": [{"id":"price_testSeedOnStartUp","unit_amount":500,"currency":"usd","product":"prod_testSeedOnStartUp","recurring":null,"billing_scheme":"per_unit","tiers_mode":null,"metadata":{}}],
+  "plans": [{"id":"plan_testSeedOnStartUp","unit_amount":2000,"currency":"usd","product":"prod_testSeedOnStartUp","billing_scheme":"per_unit","tiers_mode":null,"amount":2000,"interval":"month"}]
+}

@@ -1,4 +1,6 @@
 FROM python:3-buster
+ARG seed_dir
+ENV SEED_DIR=$seed_dir
 
 WORKDIR /localstripe
 

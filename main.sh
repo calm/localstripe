@@ -20,7 +20,7 @@ cmd_build() {
 
 cmd_integ() {
   docker stop calm_localstripe_test || echo 'no'
-  docker build -t calm_localstripe:test .
+  docker build -t calm_localstripe:test . --build-arg seed_dir='test'
   docker run -d --rm --name calm_localstripe_test calm_localstripe:test
   sleep 5
   r=0
