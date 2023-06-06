@@ -158,6 +158,8 @@ def get_api_key(request):
 async def auth_middleware(request, handler):
     if request.path.startswith('/js.stripe.com/'):
         is_auth = True
+    elif request.path == '/ping':
+        is_auth = True
 
     elif request.path.startswith('/_config/'):
         is_auth = True
@@ -286,6 +288,8 @@ def localstripe_js(request):
 
 app.router.add_get('/js.stripe.com/v3/', localstripe_js)
 
+async def healthcheck(request):
+    return web.json_response('pong')
 
 async def config_webhook(request):
     id = request.match_info['id']
@@ -307,6 +311,7 @@ async def flush_store(request):
     return web.Response()
 
 
+app.router.add_get('/ping', healthcheck)
 app.router.add_post('/_config/webhooks/{id}', config_webhook)
 app.router.add_delete('/_config/data', flush_store)
 
