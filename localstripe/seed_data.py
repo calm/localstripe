@@ -19,13 +19,18 @@ async def seed_if_does_not_exist(cls, data, logger):
                 logger.error("Error seeding %s (%s): %s" %(cls.object, datum.get('id'), e.body))
 
 async def seed_data(app):
-    try:
-        logger = logging.getLogger('aiohttp.access')
+    logger = logging.getLogger('aiohttp.access')
 
+    try:
         seed_dir = app['seed_dir']
         seed_path_glob = os.path.join(seed_dir, "*.json")
 
-        for path in glob(seed_path_glob):
+        file_list = glob(seed_path_glob)
+        if not file_list:
+            logger.warn("\n\n!!! WARNING: No fixture file found in directory: %s/ !!!", seed_dir)
+            return logger.warn("Data store will not be seeded.\n")
+
+        for path in file_list:
             if os.path.isfile(path):
                 logger.info("\nSeeding data from file: %s...\n", path)
                 file = open(path)
