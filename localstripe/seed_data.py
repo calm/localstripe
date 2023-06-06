@@ -1,12 +1,16 @@
 from .errors import UserError
 from .resources import Product, Plan, Price, Coupon
 
+from aiohttp.web_runner import GracefulExit
 from glob import glob
 import json
 import os.path
 import logging
 
 async def seed_if_does_not_exist(cls, data, logger):
+    if not isinstance(data, list):
+        raise UserError(400, 'incorrect format (data provided for %s must be a list)' % cls.object)
+
     for datum in data:
         try:
             cls._api_create(**datum)._export()
@@ -17,6 +21,8 @@ async def seed_if_does_not_exist(cls, data, logger):
                 pass
             else:
                 logger.error("Error seeding %s (%s): %s" %(cls.object, datum.get('id'), e.body))
+        except Exception as e:
+            logger.error("Incorrect format for %s. Skipping." % cls.object)
 
 async def seed_data(app):
     logger = logging.getLogger('aiohttp.access')
@@ -48,7 +54,10 @@ async def seed_data(app):
                             await seed_if_does_not_exist(Coupon, data[key], logger)
                         case _:
                             logger.error("Unimplemented Error: %s", key)
+        logger.info("\n...Success!\n")
     except json.JSONDecodeError as e:
-        logger.error("Error decoding JSON seed file: %s", e)
-    finally:
-        logger.info("\n...Done!\n")
+        logger.error("Seed Failed!!! Error decoding JSON seed file: %s\n", e)
+        raise GracefulExit()
+    except Exception as e:
+        logger.error("Seed Failed!!! Error seeding data store with data file: %s\n", e)
+        raise GracefulExit()
