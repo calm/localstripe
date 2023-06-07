@@ -1,0 +1,49 @@
+{
+  "products": [
+    {
+      "id": "prod_testSeedOnStartUp",
+      "name": "Daily Renewing Sub",
+      "description": "Product to test DS Tax webhook implementation",
+      "type": "service"
+    }
+  ],
+  "coupons": [
+    {
+      "duration": "once",
+      "id": "coupon_testSeedOnStartUp",
+      "name": "jesise-partner1234",
+      "metadata": {
+        "env": "DEV-1",
+        "max_redemption": "1000",
+        "partner_slug": "jesise-partner1234",
+        "percent_off": "10",
+        "redeem_by": "3024-05-02T00:00:00.000Z"
+      },
+      "percent_off": 10
+    }
+  ],
+  "plans": [
+    {
+      "id": "plan_testSeedOnStartUp",
+      "unit_amount": 2000,
+      "currency": "usd",
+      "product": "prod_testSeedOnStartUp",
+      "billing_scheme": "per_unit",
+      "tiers_mode": null,
+      "amount": 2000,
+      "interval": "month"
+    }
+  ],
+  "prices": [
+    {
+      "id": "price_testSeedOnStartUp",
+      "unit_amount": 500,
+      "currency": "usd",
+      "product": "prod_testSeedOnStartUp",
+      "recurring": null,
+      "billing_scheme": "per_unit",
+      "tiers_mode": null,
+      "metadata": {}
+    }
+  ]
+}

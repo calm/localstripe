@@ -18,7 +18,7 @@ import argparse
 import base64
 import json
 import logging
-import os.path
+import os
 import re
 import socket
 
@@ -31,6 +31,7 @@ from .resources import Charge, Coupon, Customer, \
     Token, extra_apis, store
 from .errors import UserError
 from .test_tokens import create_test_tokens
+from .seed_data import seed_data
 from .webhooks import register_webhook
 
 
@@ -157,6 +158,8 @@ def get_api_key(request):
 async def auth_middleware(request, handler):
     if request.path.startswith('/js.stripe.com/'):
         is_auth = True
+    elif request.path == '/ping':
+        is_auth = True
 
     elif request.path.startswith('/_config/'):
         is_auth = True
@@ -195,7 +198,6 @@ async def auth_middleware(request, handler):
 
 app = web.Application(middlewares=[error_middleware, auth_middleware])
 app.on_response_prepare.append(add_cors_headers)
-
 
 def api_create(cls, url):
     async def f(request):
@@ -286,6 +288,8 @@ def localstripe_js(request):
 
 app.router.add_get('/js.stripe.com/v3/', localstripe_js)
 
+async def healthcheck(request):
+    return web.json_response('pong')
 
 async def config_webhook(request):
     id = request.match_info['id']
@@ -307,9 +311,11 @@ async def flush_store(request):
     return web.Response()
 
 
+app.router.add_get('/ping', healthcheck)
 app.router.add_post('/_config/webhooks/{id}', config_webhook)
 app.router.add_delete('/_config/data', flush_store)
 
+app.on_startup.append(seed_data)
 
 def start():
     parser = argparse.ArgumentParser()
@@ -329,9 +335,10 @@ def start():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 
+    app['seed_dir'] = os.environ.get('SEED_DIR', 'fixtures')
+
     create_test_tokens()
     web.run_app(app, sock=sock, access_log=logger)
-
 
 if __name__ == '__main__':
     start()
