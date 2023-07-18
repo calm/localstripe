@@ -15,6 +15,7 @@ cmd_build() {
   fi
 
   echo "Building container"
+  docker buildx create --use --platform=linux/arm64,linux/amd64 --name multi-platform-builder
   # shellcheck disable=SC2086
   docker buildx build --platform linux/amd64,linux/arm64 ${tags} .
 }
