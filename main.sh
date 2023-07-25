@@ -10,12 +10,14 @@ cmd_build() {
   git_branch=$(git rev-parse --abbrev-ref HEAD)
   tags="-t 864879987165.dkr.ecr.us-east-1.amazonaws.com/calm/localstripe:${short_hash}"
 
-  if [ $git_branch == 'calm' ]; then
+  if [ "$git_branch" == 'calm' ]; then
     tags="-t 864879987165.dkr.ecr.us-east-1.amazonaws.com/calm/localstripe:latest ${tags}"
   fi
 
   echo "Building container"
-  docker build ${tags} .
+  docker buildx create --use --platform=linux/arm64,linux/amd64 --name multi-platform-builder
+  # shellcheck disable=SC2086
+  docker buildx build --push --platform linux/amd64,linux/arm64 ${tags} .
 }
 
 cmd_integ() {
@@ -33,6 +35,7 @@ cmd_integ() {
 
 cmd_local_setup() {
   python3 -m venv .venv
+  # shellcheck disable=SC1091
   source .venv/bin/activate
   pip3 install -r requirements.txt
   if ! which entr 2>/dev/null ; then
@@ -41,6 +44,7 @@ cmd_local_setup() {
 }
 
 cmd_local_dev() {
+  # shellcheck disable=SC1091
   if ! source .venv/bin/activate ; then
     echo "virtual env not setup. run local_setup first" >&2
     exit 1
