@@ -4,5 +4,6 @@ include:
 
 variables:
   CALM_BUILD_COMMAND: ./main.sh build
+  CALM_BUILD_PUSH: 'false'
   CALM_TEST_COMMAND: ./main.sh integ
   CALM_DEPLOY_TARGET: none
