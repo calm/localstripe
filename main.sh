@@ -6,18 +6,30 @@ if [[ -z "${short_hash+1}" ]] ; then
   echo "short_hash is not set; use the first 8 characters of the latest git hash ${short_hash}"
 fi
 
+base_image='864879987165.dkr.ecr.us-east-1.amazonaws.com/calm/localstripe'
+
 cmd_build() {
   git_branch=$(git rev-parse --abbrev-ref HEAD)
-  tags="-t 864879987165.dkr.ecr.us-east-1.amazonaws.com/calm/localstripe:${short_hash}"
+  tags="-t ${base_image}:${short_hash}"
 
   if [ "$git_branch" == 'calm' ]; then
-    tags="-t 864879987165.dkr.ecr.us-east-1.amazonaws.com/calm/localstripe:latest ${tags}"
+    tags="-t ${base_image}:latest ${tags}"
   fi
 
-  echo "Building container"
+  echo "Building mulitplatform image"
   docker buildx create --use --platform=linux/arm64,linux/amd64 --name multi-platform-builder
   # shellcheck disable=SC2086
   docker buildx build --push --platform linux/amd64,linux/arm64 ${tags} .
+
+  echo "Building amd64-specific image"
+  for plat in amd64 arm64 ; do
+    tag="${base_image}:${short_hash}-${plat}"
+    docker build --platform "linux/${plat}" -t "$tag" .
+    docker push "$tag"
+  done
+
+  echo "Building arm64-specific image"
+  docker build --push --platform linux/arm64 -t "${base_image}:${short_hash}-arm64" .
 }
 
 cmd_integ() {
