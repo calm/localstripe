@@ -23,10 +23,12 @@ cmd_build() {
   # shellcheck disable=SC2086
   docker buildx build --push --platform linux/amd64,linux/arm64 ${tags} .
 
+  # building individual images for each platform with separate tags
   for plat in amd64 arm64 ; do
     echo "################### Building $plat image ###################"
     tag="${base_image}:${short_hash}-${plat}"
-    docker buildx build --platform "linux/${plat}" -t "$tag" .
+    echo "# Using tag: $tag"
+    docker buildx build --push --platform "linux/${plat}" -t "$tag" .
   done
 
 }
