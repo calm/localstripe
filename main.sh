@@ -16,20 +16,19 @@ cmd_build() {
     tags="-t ${base_image}:latest ${tags}"
   fi
 
-  echo "Building mulitplatform image"
+  echo "################### Creating multi-platform builder ###################"
   docker buildx create --use --platform=linux/arm64,linux/amd64 --name multi-platform-builder
+
+  echo "################### Building multi-platform image ###################"
   # shellcheck disable=SC2086
   docker buildx build --push --platform linux/amd64,linux/arm64 ${tags} .
 
-  echo "Building amd64-specific image"
   for plat in amd64 arm64 ; do
+    echo "################### Building $plat image ###################"
     tag="${base_image}:${short_hash}-${plat}"
-    docker build --platform "linux/${plat}" -t "$tag" .
-    docker push "$tag"
+    docker buildx build --platform "linux/${plat}" -t "$tag" .
   done
 
-  echo "Building arm64-specific image"
-  docker build --push --platform linux/arm64 -t "${base_image}:${short_hash}-arm64" .
 }
 
 cmd_integ() {
