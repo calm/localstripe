@@ -543,7 +543,9 @@ class Coupon(StripeObject):
     def __init__(self, id=None, name=None, duration=None, amount_off=None,
                  percent_off=None, currency=None, metadata=None,
                  duration_in_months=None, max_redemptions=None, redeem_by=None,
+                 applies_to=None,
                  **kwargs):
+
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -614,7 +616,7 @@ class Coupon(StripeObject):
         self.redeem_by = redeem_by
         self.times_redeemed = 0
         self.valid = True
-
+        self.applies_to = applies_to
 
 class Customer(StripeObject):
     object = 'customer'
