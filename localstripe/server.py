@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright 2017 Adrien Vergé
 #
 # This program is free software: you can redistribute it and/or modify
@@ -24,11 +23,11 @@ import socket
 
 from aiohttp import web
 
-from .resources import Charge, Coupon, Customer, \
-    Event, Invoice, InvoiceItem, PaymentIntent, \
-    PaymentMethod, Plan, Price, Product, Refund, SetupIntent, \
-    Source, Subscription, SubscriptionItem, TaxRate, \
-    Token, extra_apis, store
+from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
+    Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
+    Price, Product, Refund, SetupIntent, Source, Subscription, \
+    SubscriptionItem, TaxRate, Token, extra_apis, store
+
 from .errors import UserError
 from .test_tokens import create_test_tokens
 from .seed_data import seed_data
@@ -186,7 +185,7 @@ async def auth_middleware(request, handler):
             data = unflatten_data(request.query)
 
         if not is_auth and accept_key_in_post_data:
-            if ('key' in data and type(data['key']) == str and
+            if ('key' in data and type(data['key']) is str and
                     data['key'].startswith('pk_')):
                 is_auth = True
 
@@ -196,7 +195,17 @@ async def auth_middleware(request, handler):
     return await handler(request)
 
 
-app = web.Application(middlewares=[error_middleware, auth_middleware])
+@web.middleware
+async def save_store_middleware(request, handler):
+    try:
+        return await handler(request)
+    finally:
+        if request.method in ('PUT', 'POST', 'DELETE'):
+            store.dump_to_disk()
+
+
+app = web.Application(middlewares=[error_middleware, auth_middleware,
+                                   save_store_middleware])
 app.on_response_prepare.append(add_cors_headers)
 
 def api_create(cls, url):
@@ -232,8 +241,7 @@ def api_update(cls, url):
 def api_delete(cls, url):
     def f(request):
         id = request.match_info['id']
-        ret = cls._api_delete(id)
-        return json_response(ret if isinstance(ret, dict) else ret._export())
+        return json_response(cls._api_delete(id)._export())
     return f
 
 
@@ -256,6 +264,8 @@ def api_extra(func, url):
             data['source_id'] = request.match_info['source_id']
         if 'subscription_id' in request.match_info:
             data['subscription_id'] = request.match_info['subscription_id']
+        if 'tax_id' in request.match_info:
+            data['tax_id'] = request.match_info['tax_id']
         expand = data.pop('expand', None)
         return json_response(func(**data)._export(expand=expand))
     return f
@@ -267,9 +277,10 @@ for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
 
-for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
-            PaymentIntent, PaymentMethod, Plan, Price, Product, Refund, SetupIntent,
-            Source, Subscription, SubscriptionItem, TaxRate, Token):
+for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
+            InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Price, Product,
+            Refund, SetupIntent, Source, Subscription, SubscriptionItem,
+            TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),

@@ -15,11 +15,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// First, get the domain from which this script is pulled:
-const LOCALSTRIPE_SOURCE = (function () {
+// First, get the URL base from which this script is pulled:
+const LOCALSTRIPE_BASE_API = (function () {
   const scripts = document.getElementsByTagName('script');
   const src = scripts[scripts.length - 1].src;
-  return src.match(/https?:\/\/[^\/]*/)[0];
+  if (src.match(/\/js\.stripe\.com\/v3\/$/)) {
+    return src.replace(/\/js\.stripe\.com\/v3\/$/, '');
+  } else {
+    return src.match(/https?:\/\/[^\/]*/)[0];
+  }
 })();
 
 // Check and warn if the real Stripe is already used in webpage
@@ -80,20 +84,40 @@ function openModal(text, confirmText, cancelText) {
 }
 
 class Element {
-  constructor() {
+  constructor(stripeElements) {
+    // Element needs a reference to the object that created it, in order to
+    // thoroughly destroy() itself.
+    this._stripeElements = stripeElements;
     this.listeners = {};
+    this._domChildren = [];
   }
 
   mount(domElement) {
     if (typeof domElement === 'string') {
-      domElement = document.querySelector(domElement)[0];
+      domElement = document.querySelector(domElement);
+    } else if (!(domElement instanceof window.Element)) {
+      throw new Error('Invalid DOM element. Make sure to call mount() with ' +
+                      'a valid DOM element or selector.');
     }
 
-    const span = document.createElement('span');
-    span.textContent = 'localstripe: ';
-    domElement.appendChild(span);
+    if (this._stripeElements._cardElement !== this) {
+      throw new Error('This Element has already been destroyed. Please ' +
+                      'create a new one.');
+    }
 
-    const inputs = {
+    if (this._domChildren.length) {
+      if (domElement === this._domChildren[0].parentElement) {
+        return;
+      }
+      throw new Error('This Element is already mounted. Use `unmount()` to ' +
+                      'unmount the Element before re-mounting.');
+    }
+
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = 'localstripe: ';
+    this._domChildren.push(labelSpan);
+
+    this._inputs = {
       number: null,
       exp_month: null,
       exp_year: null,
@@ -104,41 +128,57 @@ class Element {
     const changed = event => {
       this.value = {
         card: {
-          number: inputs.number.value,
-          exp_month: inputs.exp_month.value,
-          exp_year: '20' + inputs.exp_year.value,
-          cvc: inputs.cvc.value,
+          number: this._inputs.number.value,
+          exp_month: this._inputs.exp_month.value,
+          exp_year: '20' + this._inputs.exp_year.value,
+          cvc: this._inputs.cvc.value,
         },
-        postal_code: inputs.postal_code.value,
+        postal_code: this._inputs.postal_code.value,
       }
 
-      if (event.target === inputs.number &&
+      if (event.target === this._inputs.number &&
           this.value.card.number.length >= 16) {
-        inputs.exp_month.focus();
-      } else if (event.target === inputs.exp_month &&
+        this._inputs.exp_month.focus();
+      } else if (event.target === this._inputs.exp_month &&
                  parseInt(this.value.card.exp_month) > 1) {
-        inputs.exp_year.focus();
-      } else if (event.target === inputs.exp_year &&
+        this._inputs.exp_year.focus();
+      } else if (event.target === this._inputs.exp_year &&
                  this.value.card.exp_year.length >= 4) {
-        inputs.cvc.focus();
-      } else if (event.target === inputs.cvc &&
+        this._inputs.cvc.focus();
+      } else if (event.target === this._inputs.cvc &&
                  this.value.card.cvc.length >= 3) {
-        inputs.postal_code.focus();
+        this._inputs.postal_code.focus();
       }
 
       (this.listeners['change'] || []).forEach(handler => handler());
     };
 
-    Object.keys(inputs).forEach(field => {
-      inputs[field] = document.createElement('input');
-      inputs[field].setAttribute('type', 'text');
-      inputs[field].setAttribute('placeholder', field);
-      inputs[field].setAttribute('size', field === 'number' ? 16 :
-                                         field === 'postal_code' ? 5 :
-                                         field === 'cvc' ? 3 : 2);
-      inputs[field].oninput = changed;
-      domElement.appendChild(inputs[field]);
+    Object.keys(this._inputs).forEach(field => {
+      this._inputs[field] = document.createElement('input');
+      this._inputs[field].setAttribute('type', 'text');
+      this._inputs[field].setAttribute('placeholder', field);
+      this._inputs[field].setAttribute('size', field === 'number' ? 16 :
+                                       field === 'postal_code' ? 5 :
+                                       field === 'cvc' ? 3 : 2);
+      this._inputs[field].oninput = changed;
+      this._domChildren.push(this._inputs[field]);
     });
+
+    this._domChildren.forEach((child) => domElement.appendChild(child));
+  }
+
+  unmount() {
+    while (this._domChildren.length) {
+      this._domChildren.pop().remove();
+    }
+    this._inputs = undefined;
+  }
+
+  destroy() {
+    this.unmount();
+    if (this._stripeElements._cardElement === this) {
+      this._stripeElements._cardElement = null;
+    }
   }
 
   on(event, handler) {
@@ -151,23 +191,30 @@ Stripe = (apiKey) => {
   return {
     elements: () => {
       return {
-        create: (type, options) => {
-          console.log('localstripe: Stripe().elements().create()');
-          return new Element();
+        _cardElement: null,
+        create: function(type, options) {
+          if (this._cardElement) {
+            throw new Error("Can only create one Element of type card");
+          }
+          this._cardElement = new Element(this);
+          return this._cardElement;
         },
+        getElement: function(type) {
+          return this._cardElement;
+        }
       };
     },
     createToken: async (element) => {
       console.log('localstripe: Stripe().createToken()');
       let body = [];
       Object.keys(element.value.card).forEach(field => {
-        body.push('card[' + field + ']=' + card.value.card[field]);
+        body.push('card[' + field + ']=' + element.value.card[field]);
       });
       body.push('key=' + apiKey);
       body.push('payment_user_agent=localstripe');
       body = body.join('&');
       try {
-        const url = `${LOCALSTRIPE_SOURCE}/v1/tokens`;
+        const url = `${LOCALSTRIPE_BASE_API}/v1/tokens`;
         const response = await fetch(url, {
           method: 'POST',
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -190,7 +237,7 @@ Stripe = (apiKey) => {
     createSource: async (source) => {
       console.log('localstripe: Stripe().createSource()');
       try {
-        const url = `${LOCALSTRIPE_SOURCE}/v1/sources`;
+        const url = `${LOCALSTRIPE_BASE_API}/v1/sources`;
         const response = await fetch(url, {
           method: 'POST',
           body: JSON.stringify({
@@ -219,7 +266,7 @@ Stripe = (apiKey) => {
       console.log('localstripe: Stripe().confirmCardSetup()');
       try {
         const seti = clientSecret.match(/^(seti_\w+)_secret_/)[1];
-        const url = `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`;
+        const url = `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/confirm`;
         if (data.payment_method.card instanceof Element) {
           const element = data.payment_method.card;
           data.payment_method.card = element.value.card;
@@ -252,8 +299,8 @@ Stripe = (apiKey) => {
           const url =
             (await openModal('3D Secure\nDo you want to confirm or cancel?',
                              'Complete authentication', 'Fail authentication'))
-            ? `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`
-            : `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/cancel`;
+            ? `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/confirm`
+            : `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/cancel`;
           response = await fetch(url, {
             method: 'POST',
             body: JSON.stringify({
@@ -298,7 +345,7 @@ Stripe = (apiKey) => {
           '3D Secure\nDo you want to confirm or cancel?',
           'Complete authentication', 'Fail authentication');
         const pi = clientSecret.match(/^(pi_\w+)_secret_/)[1];
-        const url = `${LOCALSTRIPE_SOURCE}/v1/payment_intents/${pi}` +
+        const url = `${LOCALSTRIPE_BASE_API}/v1/payment_intents/${pi}` +
                     `/_authenticate?success=${success}`;
         const response = await fetch(url, {
           method: 'POST',
@@ -330,7 +377,7 @@ Stripe = (apiKey) => {
       console.log('localstripe: Stripe().confirmSepaDebitSetup()');
       try {
         const seti = clientSecret.match(/^(seti_\w+)_secret_/)[1];
-        const url = `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`;
+        const url = `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/confirm`;
         let response = await fetch(url, {
           method: 'POST',
           body: JSON.stringify({
@@ -357,9 +404,11 @@ Stripe = (apiKey) => {
         }
       }
     },
+
+    createPaymentMethod: async () => {},
   };
 };
 
 console.log('localstripe: The Stripe object was just replaced in the page. ' +
             'Stripe elements created from now on will be fake ones, ' +
-            `communicating with the mock server at ${LOCALSTRIPE_SOURCE}.`);
+            `communicating with the mock server at ${LOCALSTRIPE_BASE_API}.`);
