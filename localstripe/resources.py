@@ -452,7 +452,6 @@ class Card(StripeObject):
             metadata=self.metadata
         )
 
-
     @property
     def last4(self):
         return self._card_number[-4:]
@@ -511,7 +510,8 @@ class Charge(StripeObject):
             if source is not None:
                 assert type(source) is str
                 assert (source.startswith('pm_') or source.startswith('src_')
-                        or source.startswith('card_') or source.startswith('tok_'))
+                        or source.startswith('card_')
+                        or source.startswith('tok_'))
             assert type(capture) is bool
             if receipt_email is not None:
                 assert type(receipt_email) is str and receipt_email
@@ -653,19 +653,6 @@ class Charge(StripeObject):
         obj._trigger_payment(on_success)
         return obj
 
-    @classmethod
-    def _api_list_all(cls, url, customer=None, limit=None):
-        try:
-            if customer is not None:
-                assert type(customer) is str and customer.startswith('cus_')
-        except AssertionError:
-            raise UserError(400, 'Bad request')
-
-        li = super(Charge, cls)._api_list_all(url, limit=limit)
-        if customer is not None:
-            li._list = [c for c in li._list if c.customer == customer]
-        return li
-
     @property
     def paid(self):
         return self.status == 'succeeded'
@@ -684,7 +671,7 @@ class Charge(StripeObject):
         return self.amount <= self.amount_refunded
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, created=None, limit=10,
+    def _api_list_all(cls, url, customer=None, created=None, limit=None,
                       starting_after=None):
         try:
             if customer is not None:
@@ -761,9 +748,11 @@ class Coupon(StripeObject):
                     f'percent_off expected to be of type float or int, got: ' \
                     f'{percent_off}'
                 assert 0 <= percent_off <= 100, \
-                    f'percent_off must be between 0 and 100, got: {percent_off}'
+                    ('percent_off must be between 0 and 100, '
+                     f'got: {percent_off}')
                 assert duration in ('forever', 'once', 'repeating'), \
-                    f'duration must be one of [forever, once, repeating], got: {duration}'
+                    ('duration must be one of [forever, once, repeating], '
+                     f'got:{duration}')
             if amount_off is not None:
                 assert type(currency) is str and currency, \
                     f'currency is expected, got: {currency}'
@@ -784,7 +773,7 @@ class Coupon(StripeObject):
             if redeem_by is not None:
                 assert type(redeem_by) is int, \
                     f'redeem_by expected to be an int, got: {type(redeem_by)}'
-                assert redeem_by > 0,\
+                assert redeem_by > 0, \
                     f'redeem_by greater than 0 expected, got: {redeem_by}'
         except AssertionError:
             raise UserError(400, 'Bad request')
@@ -804,6 +793,7 @@ class Coupon(StripeObject):
         self.times_redeemed = 0
         self.valid = True
         self.applies_to = applies_to
+
 
 class Customer(StripeObject):
     object = 'customer'
@@ -914,20 +904,6 @@ class Customer(StripeObject):
             '/v1/customers/' + self.id + '/subscriptions', customer=self.id)
 
     @classmethod
-    def _api_list_all(cls, url, email=None, limit=None):
-        try:
-            if email is not None:
-                # minimal email validation
-                assert type(email) is str and email.index('@') > 0
-        except AssertionError:
-            raise UserError(400, 'Bad request')
-
-        li = super(Customer, cls)._api_list_all(url, limit=limit)
-        if email is not None:
-            li._list = [c for c in li._list if c.email == email]
-        return li
-
-    @classmethod
     def _api_create(cls, source=None, **data):
         obj = super()._api_create(**data)
 
@@ -1011,7 +987,8 @@ class Customer(StripeObject):
 
         if source_obj._attaching_is_declined():
             raise UserError(402, 'Your card was declined.',
-                            {'code': 'card_declined', 'decline_code': source_obj._decline_code()})
+                            {'code': 'card_declined',
+                             'decline_code': source_obj._decline_code()})
 
         if isinstance(source_obj, Card):
             source_obj._set_customer(id)
@@ -2285,7 +2262,6 @@ class PaymentMethod(StripeObject):
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
 
-
     def _requires_authentication(self):
         if self.type == 'card':
             return self._card_number in ('4000002500003155',
@@ -2661,17 +2637,25 @@ class Price(StripeObject):
                         type(t) is dict and 'up_to' in t and \
                         (t['up_to'] == 'inf' or
                          type(try_convert_to_int(t['up_to'])) is int)
-                    unit_amount_tiers = try_convert_to_int(t.get('unit_amount', 0))
-                    assert type(unit_amount_tiers) is int and unit_amount_tiers >= 0
+                    unit_amount_tiers = try_convert_to_int(t.get('unit_amount',
+                                                                 0))
+
+                    assert (type(unit_amount_tiers) is int
+                            and unit_amount_tiers >= 0)
                     t['unit_amount'] = unit_amount_tiers
-                    flat_amount_tiers = try_convert_to_int(t.get('flat_amount', 0))
-                    assert type(flat_amount_tiers) is int and flat_amount_tiers >= 0
+                    flat_amount_tiers = try_convert_to_int(t.get('flat_amount',
+                                                                 0))
+
+                    assert (type(flat_amount_tiers) is int
+                            and flat_amount_tiers >= 0)
                     t['flat_amount'] = flat_amount_tiers
             assert type(currency) is str and currency
             if recurring:
-                assert type(recurring) is dict and 'interval' in recurring and \
-                    'interval_count' in recurring and \
-                    recurring['interval'] in ('day', 'week', 'month', 'year')
+                assert (type(recurring) is dict
+                        and 'interval' in recurring
+                        and 'interval_count' in recurring
+                        and recurring['interval']
+                            in ('day', 'week', 'month', 'year'))
                 interval_count = try_convert_to_int(recurring.get(
                     'interval_count', 0))
                 assert type(interval_count) is int and interval_count >= 0
@@ -2715,7 +2699,12 @@ class Price(StripeObject):
         return Product._api_retrieve(self.product).statement_descriptor
 
     @classmethod
-    def _api_list_all(cls, url, active=True, product=None, limit=None, **kwargs):
+    def _api_list_all(cls,
+                      url,
+                      active=True,
+                      product=None,
+                      limit=None,
+                      **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2723,9 +2712,9 @@ class Price(StripeObject):
         li._list = [value for key, value in store.items()
                     if key.startswith(cls.object + ':')]
         if active:
-            li._list = list(filter(lambda x: x.active == True, li._list))
+            li._list = list(filter(lambda x: x.active is True, li._list))
         if product:
-            li._list = list(filter(lambda x: x.product == product,li._list))
+            li._list = list(filter(lambda x: x.product == product, li._list))
         return li
 
 

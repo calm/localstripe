@@ -1,28 +1,37 @@
-from .errors import UserError
-from .resources import Product, Plan, Price, Coupon
-
-from aiohttp.web_runner import GracefulExit
 from glob import glob
 import json
 import os.path
 import logging
 
+from aiohttp.web_runner import GracefulExit
+
+from .errors import UserError
+from .resources import Product, Plan, Price, Coupon
+
+
 async def seed_if_does_not_exist(cls, data, logger):
     if not isinstance(data, list):
-        raise UserError(400, 'incorrect format (data provided for %s must be a list)' % cls.object)
+        raise UserError(400,
+                        ('incorrect format'
+                         '(data provided for %s must be a list)' % cls.object))
 
     for datum in data:
         try:
             cls._api_create(**datum)._export()
-            logger.info("Successfully created %s: %s" %(cls.object, datum.get('id')))
+            logger.info((f'Successfully created {cls.object}'
+                        f": {datum.get('id')}"))
         except UserError as e:
             if (e.code == 409):
-                logger.info("Ignoring already seeded %s: %s" %(cls.object, datum.get('id')))
+                logger.info(('Ignoring already seeded {cls.object}: '
+                            f"{datum.get('id')}"))
                 pass
             else:
-                logger.error("Error seeding %s (%s): %s" %(cls.object, datum.get('id'), e.body))
+                logger.error((f'Error seeding {cls.object} '
+                              f"({datum.get('id')}): "
+                              f'{e.body}'))
         except Exception as e:
-            logger.error("Incorrect format for %s. Skipping." % cls.object)
+            logger.error(f'Incorrect format for {cls.object}: {e}. Skipping.')
+
 
 async def seed_data(app):
     logger = logging.getLogger('aiohttp.access')
@@ -33,7 +42,9 @@ async def seed_data(app):
 
         file_list = glob(seed_path_glob)
         if not file_list:
-            logger.warn("\n\n!!! WARNING: No fixture file found in directory: %s/ !!!", seed_dir)
+            logger.warn(('\n\n!!! WARNING:'
+                         f'No fixture file found in directory: {seed_dir}/'
+                         '!!!'))
             return logger.warn("Data store will not be seeded.\n")
 
         for path in file_list:
@@ -45,13 +56,17 @@ async def seed_data(app):
                 for key in data:
                     match key:
                         case 'products':
-                            await seed_if_does_not_exist(Product, data[key], logger)
+                            await seed_if_does_not_exist(Product, data[key],
+                                                         logger)
                         case 'plans':
-                            await seed_if_does_not_exist(Plan, data[key], logger)
+                            await seed_if_does_not_exist(Plan, data[key],
+                                                         logger)
                         case 'prices':
-                            await seed_if_does_not_exist(Price, data[key], logger)
+                            await seed_if_does_not_exist(Price, data[key],
+                                                         logger)
                         case 'coupons':
-                            await seed_if_does_not_exist(Coupon, data[key], logger)
+                            await seed_if_does_not_exist(Coupon, data[key],
+                                                         logger)
                         case _:
                             logger.error("Unimplemented Error: %s", key)
         logger.info("\n...Success!\n")
@@ -59,5 +74,6 @@ async def seed_data(app):
         logger.error("Seed Failed!!! Error decoding JSON seed file: %s\n", e)
         raise GracefulExit()
     except Exception as e:
-        logger.error("Seed Failed!!! Error seeding data store with data file: %s\n", e)
+        logger.error(('Seed Failed!!!'
+                      f'Error seeding data store with data file: {e}\n'))
         raise GracefulExit()

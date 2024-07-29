@@ -27,7 +27,6 @@ from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
     Price, Product, Refund, SetupIntent, Source, Subscription, \
     SubscriptionItem, TaxRate, Token, extra_apis, store
-
 from .errors import UserError
 from .test_tokens import create_test_tokens
 from .seed_data import seed_data
@@ -208,6 +207,7 @@ app = web.Application(middlewares=[error_middleware, auth_middleware,
                                    save_store_middleware])
 app.on_response_prepare.append(add_cors_headers)
 
+
 def api_create(cls, url):
     async def f(request):
         data = await get_post_data(request)
@@ -278,9 +278,9 @@ for method, url, func in extra_apis:
 
 
 for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
-            InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Price, Product,
-            Refund, SetupIntent, Source, Subscription, SubscriptionItem,
-            TaxRate, Token):
+            InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Price,
+            Product, Refund, SetupIntent, Source, Subscription,
+            SubscriptionItem, TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),
@@ -299,8 +299,10 @@ def localstripe_js(request):
 
 app.router.add_get('/js.stripe.com/v3/', localstripe_js)
 
+
 async def healthcheck(request):
     return web.json_response('pong')
+
 
 async def config_webhook(request):
     id = request.match_info['id']
@@ -328,6 +330,7 @@ app.router.add_delete('/_config/data', flush_store)
 
 app.on_startup.append(seed_data)
 
+
 def start():
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=8420)
@@ -350,6 +353,7 @@ def start():
 
     create_test_tokens()
     web.run_app(app, sock=sock, access_log=logger)
+
 
 if __name__ == '__main__':
     start()
