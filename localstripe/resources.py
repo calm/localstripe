@@ -399,7 +399,7 @@ class Card(StripeObject):
             address_state = source.get('address_state')
             address_zip = source.get('address_zip')
             name = source.get('name')
-            assert type(number) is str and len(number) == 16
+            assert type(number) is str and len(number) in (15, 16)
             assert type(exp_month) is int
             assert exp_month >= 1 and exp_month <= 12
             assert type(exp_year) is int
@@ -1185,7 +1185,7 @@ class Event(StripeObject):
         self.api_version = '2017-08-15'
 
     @classmethod
-    def _api_list_all(cls, url, type=None, limit=None):
+    def _api_list_all(cls, url, type=None, limit=None, starting_after=None):
         try:
             if type is not None:
                 assert (isinstance(type, str) and
@@ -1193,7 +1193,8 @@ class Event(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        li = super(Event, cls)._api_list_all(url, limit=limit)
+        li = super(Event, cls)._api_list_all(url, limit=limit,
+                                             starting_after=starting_after)
         if type is not None:
             matcher = wildcard_matcher(type)
             li._list = [e for e in li._list if matcher(e.type)]
@@ -2704,11 +2705,12 @@ class Price(StripeObject):
                       active=True,
                       product=None,
                       limit=None,
+                      starting_after=None,
                       **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
-        li = List(url, limit=limit)
+        li = List(url, limit=limit, starting_after=starting_after)
         li._list = [value for key, value in store.items()
                     if key.startswith(cls.object + ':')]
         if active:
@@ -3117,11 +3119,11 @@ class Subscription(StripeObject):
         if len(items) != 1:
             raise UserError(500, 'Not implemented')
 
-        customer_obj = Customer._api_retrieve(
-            customer)  # to return 404 if not existent
-        payment_obj = customer_obj._get_default_payment_method_or_source()
-        if payment_obj._requires_authentication() \
-                and payment_behavior == 'error_if_incomplete':
+        cus = Customer._api_retrieve(customer)  # to return 404 if not existent
+        payment_obj = cus._get_default_payment_method_or_source()
+        if (payment_obj is not None
+                and payment_obj._requires_authentication()
+                and payment_behavior == 'error_if_incomplete'):
             # TODO: not sure if card_error is the exact right error,
             #  but it makes the tests pass
             raise UserError(400, 'Bad request', {}, 'card_error')

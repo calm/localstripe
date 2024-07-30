@@ -6,16 +6,16 @@ set -eux
 LS_HOST=${LS_HOST:-http://localhost:8420}
 SK=sk_test_12345
 
-testProductSeededOnStartup=$(curl -sSf -u $SK: $LS_HOST/v1/products | grep -oE 'prod_testSeedOnStartUp' | head -n 1)
+testProductSeededOnStartup=$(curl -sSfg -u $SK: $LS_HOST/v1/products | grep -oE 'prod_testSeedOnStartUp' | head -n 1)
 [ "$testProductSeededOnStartup" = "prod_testSeedOnStartUp" ]
 
-testCouponSeededOnStartup=$(curl -sSf -u $SK: $LS_HOST/v1/coupons | grep -oE 'coupon_testSeedOnStartUp' | head -n 1)
+testCouponSeededOnStartup=$(curl -sSfg -u $SK: $LS_HOST/v1/coupons | grep -oE 'coupon_testSeedOnStartUp' | head -n 1)
 [ "$testCouponSeededOnStartup" = "coupon_testSeedOnStartUp" ]
 
-testPlanSeededOnStartup=$(curl -sSf -u $SK: $LS_HOST/v1/plans | grep -oE 'plan_testSeedOnStartUp' | head -n 1)
+testPlanSeededOnStartup=$(curl -sSfg -u $SK: $LS_HOST/v1/plans | grep -oE 'plan_testSeedOnStartUp' | head -n 1)
 [ "$testPlanSeededOnStartup" = "plan_testSeedOnStartUp" ]
 
-testPriceSeededOnStartup=$(curl -sSf -u $SK: $LS_HOST/v1/prices | grep -oE 'price_testSeedOnStartUp' | head -n 1)
+testPriceSeededOnStartup=$(curl -sSfg -u $SK: $LS_HOST/v1/prices | grep -oE 'price_testSeedOnStartUp' | head -n 1)
 [ "$testPriceSeededOnStartup" = "price_testSeedOnStartUp" ]
 
 curl -X DELETE $LS_HOST/_config/data

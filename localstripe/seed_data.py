@@ -42,7 +42,7 @@ async def seed_data(app):
 
         file_list = glob(seed_path_glob)
         if not file_list:
-            logger.warn(('\n\n!!! WARNING:'
+            logger.warn(('\n\n!!! WARNING: '
                          f'No fixture file found in directory: {seed_dir}/'
                          '!!!'))
             return logger.warn("Data store will not be seeded.\n")

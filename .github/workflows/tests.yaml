@@ -44,7 +44,7 @@ jobs:
       - run: pip install 'pip >=23' build
       - run: python -m build
       - run: pip install dist/localstripe-*.tar.gz
-      - run: python -m localstripe &
+      - run: SEED_DIR=fixtures/integration_test python -m localstripe &
       # Wait for server to be up:
       - run: >
           timeout=5; while [ $((timeout--)) -ge 0 ]; do
