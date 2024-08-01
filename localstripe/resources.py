@@ -414,6 +414,7 @@ class Card(StripeObject):
         super().__init__()
 
         self._card_number = number
+        self.token = None
 
         self.type = 'card'
         self.metadata = {}
@@ -1228,6 +1229,7 @@ class Invoice(StripeObject):
                  simulation=False, upcoming=False,
                  tax_percent=None,  # deprecated
                  default_tax_rates=None, is_trial=False,
+                 automatic_tax=None,
                  ** kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -1254,6 +1256,12 @@ class Invoice(StripeObject):
                 assert type(default_tax_rates) is list
                 assert all(type(txr) is str and txr.startswith('txr_')
                            for txr in default_tax_rates)
+            if automatic_tax is not None:
+                assert ('enabled' in automatic_tax
+                        and automatic_tax['enabled'] in
+                        ("false", "true", True, False))
+                enabled = try_convert_to_bool(automatic_tax['enabled'])
+                automatic_tax['enabled'] = enabled
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1297,6 +1305,7 @@ class Invoice(StripeObject):
         self.period_start = None
         self.period_end = None
         self.coupon = None
+        self.automatic_tax = automatic_tax
         if subscription is not None:
             self.period_start = subscription_obj.current_period_start
             self.period_end = subscription_obj.current_period_end
@@ -1476,13 +1485,14 @@ class Invoice(StripeObject):
                           subscription_tax_percent=None,  # deprecated
                           subscription_default_tax_rates=None,
                           subscription_trial_end=None,
-                          pending_invoice_items_behavior=None):
+                          pending_invoice_items_behavior="exclude",
+                          automatic_tax=None):
         subscription_proration_date = \
             try_convert_to_int(subscription_proration_date)
         try:
             assert (type(customer) is str and customer.startswith('cus_')) \
-                   or (type(subscription) is str
-                       and subscription.startswith('sub_'))
+                    or (type(subscription) is str
+                        and subscription.startswith('sub_'))
             if default_tax_rates is not None:
                 assert type(default_tax_rates) is list
                 assert all(type(txr) is str and txr.startswith('txr_')
@@ -1504,6 +1514,15 @@ class Invoice(StripeObject):
             if subscription_proration_date is not None:
                 assert type(subscription_proration_date) is int
                 assert subscription_proration_date > 1500000000
+            if automatic_tax is not None:
+                assert ('enabled' in automatic_tax
+                        and automatic_tax['enabled'] in ("false", "true"))
+                enabled = try_convert_to_bool(automatic_tax['enabled'])
+                automatic_tax['enabled'] = enabled
+            if pending_invoice_items_behavior is not None:
+                assert (type(pending_invoice_items_behavior) is str
+                        and pending_invoice_items_behavior in
+                            ("exclude", "include"))
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1580,7 +1599,9 @@ class Invoice(StripeObject):
         if current_subscription:
             date = current_subscription.current_period_end
 
-        if not simulation and not current_subscription:
+        if (not simulation
+                and not current_subscription
+                and pending_invoice_items_behavior == "exclude"):
             raise UserError(404, 'No upcoming invoices for customer')
 
         elif not simulation and current_subscription:
@@ -1591,8 +1612,17 @@ class Invoice(StripeObject):
                        tax_percent=tax_percent,
                        default_tax_rates=default_tax_rates,
                        date=date,
-                       description=description)
-
+                       description=description,
+                       automatic_tax=automatic_tax)
+        elif not simulation and pending_invoice_items_behavior == "include":
+            return cls(upcoming=upcoming,
+                       customer=customer,
+                       items=invoice_items,
+                       tax_percent=tax_percent,
+                       default_tax_rates=default_tax_rates,
+                       date=date,
+                       description=description,
+                       automatic_tax=automatic_tax)
         else:  # if simulation
             if subscription is not None:
                 # Get previous invoice for this subscription and customer, and
@@ -1624,6 +1654,7 @@ class Invoice(StripeObject):
                           default_tax_rates=default_tax_rates,
                           date=date,
                           description=description,
+                          automatic_tax=automatic_tax,
                           simulation=True)
 
             if subscription_proration_date is not None:
@@ -1636,12 +1667,13 @@ class Invoice(StripeObject):
     @classmethod
     def _api_create(cls, customer=None, subscription=None, tax_percent=None,
                     default_tax_rates=None, description=None, metadata=None,
-                    pending_invoice_items_behavior=None):
+                    pending_invoice_items_behavior=None, automatic_tax=None):
         return cls._get_next_invoice(
             customer=customer, subscription=subscription,
             tax_percent=tax_percent, default_tax_rates=default_tax_rates,
             description=description, metadata=metadata,
-            pending_invoice_items_behavior=pending_invoice_items_behavior)
+            pending_invoice_items_behavior=pending_invoice_items_behavior,
+            automatic_tax=automatic_tax)
 
     @classmethod
     def _api_delete(cls, id):
@@ -1772,9 +1804,9 @@ class InvoiceItem(StripeObject):
     _id_prefix = 'ii_'
 
     def __init__(self, invoice=None, subscription=None, plan=None, amount=None,
-                 currency=None, customer=None, period_start=None,
+                 currency=None, customer=None, period_start=None, price=None,
                  period_end=None, proration=False, description=None,
-                 tax_rates=[], metadata=None, **kwargs):
+                 tax_rates=[], metadata=None, quantity=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -1782,6 +1814,7 @@ class InvoiceItem(StripeObject):
         period_start = try_convert_to_int(period_start)
         period_end = try_convert_to_int(period_end)
         proration = try_convert_to_bool(proration)
+        quantity = try_convert_to_int(quantity)
         try:
             if invoice is not None:
                 assert type(invoice) is str and invoice.startswith('in_')
@@ -1790,8 +1823,11 @@ class InvoiceItem(StripeObject):
                 assert subscription.startswith('sub_')
             if plan is not None:
                 assert type(plan) is str and plan
-            assert type(amount) is int
-            assert type(currency) is str and currency
+            if price is None:
+                assert type(amount) is int
+                assert type(currency) is str and currency
+            else:
+                assert type(price) is str
             assert type(customer) is str and customer.startswith('cus_')
             if period_start is not None:
                 assert type(period_start) is int and period_start > 1500000000
@@ -1799,6 +1835,8 @@ class InvoiceItem(StripeObject):
             else:
                 period_start = period_end = int(time.time())
             assert type(proration) is bool
+            if quantity is not None:
+                assert type(quantity) is int and quantity > 0
             if description is not None:
                 assert type(description) is str
             else:
@@ -1833,6 +1871,12 @@ class InvoiceItem(StripeObject):
         self.description = description
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
+        self.quantity = quantity
+        self.price = price
+        if price is not None:
+            p = Price._api_retrieve(price)
+            self.currency = p.currency
+            self.amount = p.unit_amount
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None,
@@ -2205,19 +2249,26 @@ class PaymentMethod(StripeObject):
             assert type in ('card', 'sepa_debit')
             assert billing_details is None or _type(billing_details) is dict
             if type == 'card':
-                assert _type(card) is dict and card.keys() == {
-                    'number', 'exp_month', 'exp_year', 'cvc'}
-                card['exp_month'] = try_convert_to_int(card['exp_month'])
-                card['exp_year'] = try_convert_to_int(card['exp_year'])
-                assert _type(card['number']) is str
-                assert _type(card['exp_month']) is int
-                assert _type(card['exp_year']) is int
-                assert _type(card['cvc']) is str
-                assert len(card['number']) in (15, 16)
-                assert card['exp_month'] >= 1 and card['exp_month'] <= 12
-                if card['exp_year'] > 0 and card['exp_year'] < 100:
-                    card['exp_year'] += 2000
-                assert len(card['cvc']) in (3, 4)
+                assert _type(card) is dict and (
+                    card.keys() == {
+                        'number', 'exp_month', 'exp_year', 'cvc'}
+                    or card.keys() == {'token'})
+
+                if 'token' in card:
+                    assert (_type(card['token']) is str
+                            and card['token'].startswith('tok_'))
+                else:
+                    card['exp_month'] = try_convert_to_int(card['exp_month'])
+                    card['exp_year'] = try_convert_to_int(card['exp_year'])
+                    assert _type(card['number']) is str
+                    assert _type(card['exp_month']) is int
+                    assert _type(card['exp_year']) is int
+                    assert _type(card['cvc']) is str
+                    assert len(card['number']) in (15, 16)
+                    assert card['exp_month'] >= 1 and card['exp_month'] <= 12
+                    if card['exp_year'] > 0 and card['exp_year'] < 100:
+                        card['exp_year'] += 2000
+                    assert len(card['cvc']) in (3, 4)
             elif type == 'sepa_debit':
                 assert _type(sepa_debit) is dict
                 assert 'iban' in sepa_debit
@@ -2226,7 +2277,7 @@ class PaymentMethod(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        if type == 'card':
+        if type == 'card' and 'token' not in card:
             if not (2018 <= card['exp_year'] < 2100):
                 raise UserError(400, 'Bad request',
                                 {'code': 'invalid_expiry_year'})
@@ -2240,17 +2291,22 @@ class PaymentMethod(StripeObject):
         self.metadata = metadata or {}
 
         if self.type == 'card':
-            self._card_number = card['number']
-            self.card = {
-                'exp_month': card['exp_month'],
-                'exp_year': card['exp_year'],
-                'last4': self._card_number[-4:],
-                'brand': 'visa',
-                'country': 'FR',
-                'fingerprint': fingerprint(self._card_number),
-                'funding': 'credit',
-                'three_d_secure_usage': {'supported': True},
-            }
+            self._card_number = None
+            if 'token' in card:
+                self.token = card['token']
+                self.card = Token._api_retrieve(card['token']).card
+            else:
+                self._card_number = card['number']
+                self.card = {
+                    'exp_month': card['exp_month'],
+                    'exp_year': card['exp_year'],
+                    'last4': self._card_number[-4:],
+                    'brand': 'visa',
+                    'country': 'FR',
+                    'fingerprint': fingerprint(self._card_number),
+                    'funding': 'credit',
+                    'three_d_secure_usage': {'supported': True},
+                }
         elif self.type == 'sepa_debit':
             self._sepa_debit_iban = \
                 re.sub(r'\s', '', sepa_debit['iban']).upper()
@@ -2265,42 +2321,67 @@ class PaymentMethod(StripeObject):
 
     def _requires_authentication(self):
         if self.type == 'card':
-            return self._card_number in ('4000002500003155',
-                                         '4000002760003184',
-                                         '4000008260003178',
-                                         '4000000000003220',
-                                         '4000000000003063',
-                                         '4000008400001629')
+            if self._card_number is not None:
+                return self._card_number in ('4000002500003155',
+                                             '4000002760003184',
+                                             '4000008260003178',
+                                             '4000000000003220',
+                                             '4000000000003063',
+                                             '4000008400001629')
+            if self.token is not None:
+                return self.token in (
+                    'tok_visa_chargeDeclinedInsufficientFunds',
+                    )
         return False
 
     def _attaching_is_declined(self):
         if self.type == 'card':
-            return self._card_number in ('4000000000000002',
-                                         '4000000000009995',
-                                         '4000000000009987',
-                                         '4000000000009979',
-                                         '4000000000000069',
-                                         '4000000000000127',
-                                         '4000000000000119',
-                                         '4242424242424241')
+            if self._card_number is not None:
+                return self._card_number in ('4000000000000002',
+                                             '4000000000009995',
+                                             '4000000000009987',
+                                             '4000000000009979',
+                                             '4000000000000069',
+                                             '4000000000000127',
+                                             '4000000000000119',
+                                             '4242424242424241')
+            if self.token is not None:
+                return self.token in (
+                    'tok_visa_chargeDeclined',
+                    'tok_visa_chargeDeclinedLostCard',
+                    'tok_visa_chargeDeclinedStolenCard',
+                    'tok_chargeDeclinedExpiredCard',
+                    'tok_chargeDeclinedIncorrectCvc',
+                    'tok_chargeDeclinedProcessingError',
+                    'tok_visa_chargeDeclinedVelocityLimitExceeded')
         return False
 
     def _charging_is_declined(self):
         if self.type == 'card':
-            return self._card_number in ('4000000000000341',
-                                         '4000008260003178',
-                                         '4000008400001629')
+            if self._card_number is not None:
+                return self._card_number in ('4000000000000341',
+                                             '4000008260003178',
+                                             '4000008400001629')
+            if self.token is not None:
+                return self.token in (
+                    'tok_chargeCustomerFail',
+                    'tok_visa_chargeDeclinedInsufficientFunds')
         elif self.type == 'sepa_debit':
             return self._sepa_debit_iban == 'DE62370400440532013001'
         return False
 
     def _decline_code(self):
         if self.type == 'card':
-            if self._card_number == '4000000000009995':
+            if (
+                self._card_number == '4000000000009995'
+                    or self.token == 'tok_visa_chargeDeclinedInsufficientFunds'
+               ):
                 return 'insufficient_funds'
-            if self._card_number == '4000000000009987':
+            if (self._card_number == '4000000000009987'
+                    or self.token == 'tok_visa_chargeDeclinedLostCard'):
                 return 'lost_card'
-            if self._card_number == '4000000000009979':
+            if (self._card_number == '4000000000009979'
+                    or self.token == "tok_visa_chargeDeclinedStolenCard"):
                 return 'stolen_card'
         return None
 
@@ -2925,9 +3006,12 @@ class SetupIntent(StripeObject):
     _id_prefix = 'seti_'
 
     def __init__(self, customer=None, usage=None, payment_method_types=None,
-                 metadata=None, **kwargs):
+                 metadata=None, automatic_payment_methods=None, confirm=None,
+                 payment_method=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        confirm = try_convert_to_bool(confirm)
 
         try:
             if customer is not None:
@@ -2940,6 +3024,12 @@ class SetupIntent(StripeObject):
             assert type(payment_method_types) is list
             assert all(t in ('card', 'sepa_debit', 'ideal')
                        for t in payment_method_types)
+            if confirm is not None:
+                assert type(confirm) is bool
+            if payment_method is not None:
+                assert type(payment_method) is str
+            if automatic_payment_methods is not None:
+                assert type(automatic_payment_methods) is dict
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -3046,7 +3136,7 @@ class Subscription(StripeObject):
                  payment_behavior='allow_incomplete',
                  trial_period_days=None, billing_cycle_anchor=None,
                  proration_behavior=None,
-                 coupon=None, **kwargs):
+                 coupon=None, automatic_tax=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -3113,6 +3203,11 @@ class Subscription(StripeObject):
                                         'error_if_incomplete')
             if coupon is not None:
                 assert type(coupon) is str
+            if automatic_tax is not None:
+                assert ('enabled' in automatic_tax
+                        and automatic_tax['enabled'] in ("false", "true"))
+                enabled = try_convert_to_bool(automatic_tax['enabled'])
+                automatic_tax['enabled'] = enabled
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -3176,6 +3271,7 @@ class Subscription(StripeObject):
         self.start_date = backdate_start_date or int(time.time())
         self.billing_cycle_anchor = billing_cycle_anchor
         self.coupon = coupon
+        self.automatic_tax = automatic_tax
         self._enable_incomplete_payments = (
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')

@@ -18,6 +18,21 @@ testPlanSeededOnStartup=$(curl -sSfg -u $SK: $HOST/v1/plans | grep -oE 'plan_tes
 testPriceSeededOnStartup=$(curl -sSfg -u $SK: $HOST/v1/prices | grep -oE 'price_testSeedOnStartUp' | head -n 1)
 [ "$testPriceSeededOnStartup" = "price_testSeedOnStartUp" ]
 
+# use the fixtures to test that we can create an invoice item
+# using a price
+cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
+          -d email=james.robinson@example.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+curl -sSfg -u $SK: $HOST/v1/invoiceitems \
+              -d customer=$cus \
+              -d price=price_testSeedOnStartUp \
+              -d quantity=1
+curl -sSfg -u $SK: $HOST/v1/invoices \
+               -d customer=$cus \
+               -d automatic_tax[enabled]=true \
+               -d pending_invoice_items_behavior=include
+
+# Cleanup fixtures
 curl -X DELETE $HOST/_config/data
 
 cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
@@ -560,6 +575,12 @@ cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
            -d email=john.malkovich@example.com \
       | grep -oE 'cus_\w+' | head -n 1)
 
+# test that we can create a payment method using a token
+curl -sSfg -u $SK: $HOST/v1/payment_methods \
+          -d type=card \
+          -d card[token]='tok_visa' \
+     | grep -oE 'pm_\w+' | head -n 1
+
 pm=$(curl -sSfg -u $SK: $HOST/v1/payment_methods \
           -d type=card \
           -d card[number]=4242424242424242 \
@@ -979,3 +1000,9 @@ charge=$(curl -sSfgG -u $SK: $HOST/v1/invoices \
               -d expand[]=data.charge.refunds \
          | grep -oE '"charge": null,')
 [ -n "$charge" ]
+
+# test support for automatic taxes
+curl -sSfg -u $SK: $HOST/v1/subscriptions \
+              -d customer=$cus \
+              -d items[0][plan]=basique-mensuel \
+              -d automatic_tax[enabled]=true

@@ -6,7 +6,7 @@ import logging
 from aiohttp.web_runner import GracefulExit
 
 from .errors import UserError
-from .resources import Product, Plan, Price, Coupon
+from .resources import Product, Plan, Price, Coupon, PaymentMethod
 
 
 async def seed_if_does_not_exist(cls, data, logger):
@@ -66,6 +66,10 @@ async def seed_data(app):
                                                          logger)
                         case 'coupons':
                             await seed_if_does_not_exist(Coupon, data[key],
+                                                         logger)
+                        case 'payment_methods':
+                            await seed_if_does_not_exist(PaymentMethod,
+                                                         data[key],
                                                          logger)
                         case _:
                             logger.error("Unimplemented Error: %s", key)
