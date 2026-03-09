@@ -22,8 +22,10 @@ import logging
 
 import aiohttp
 
+from .namespaced_store import current_namespace
 
-_webhooks = {}
+
+_webhooks = {}  # namespace -> {id: Webhook}
 
 
 class Webhook(object):
@@ -33,11 +35,18 @@ class Webhook(object):
         self.events = events
 
 
+def _get_webhooks():
+    ns = current_namespace.get()
+    if ns not in _webhooks:
+        _webhooks[ns] = {}
+    return _webhooks[ns]
+
+
 def register_webhook(id, url, secret, events):
-    _webhooks[id] = Webhook(url, secret, events)
+    _get_webhooks()[id] = Webhook(url, secret, events)
 
 
-async def _send_webhook(event):
+async def _send_webhook(event, namespace):
     payload = json.dumps(event._export(), indent=2, sort_keys=True)
     payload = payload.encode('utf-8')
     signed_payload = b'%d.%s' % (event.created, payload)
@@ -46,7 +55,10 @@ async def _send_webhook(event):
 
     logger = logging.getLogger('aiohttp.access')
 
-    for webhook in _webhooks.values():
+    # Use the namespace that was active when the event was created
+    webhooks = _webhooks.get(namespace, {})
+
+    for webhook in webhooks.values():
         if webhook.events is not None and event.type not in webhook.events:
             continue
 
@@ -70,4 +82,6 @@ async def _send_webhook(event):
 
 
 def schedule_webhook(event):
-    asyncio.ensure_future(_send_webhook(event))
+    # Capture current namespace at scheduling time
+    namespace = current_namespace.get()
+    asyncio.ensure_future(_send_webhook(event, namespace))
