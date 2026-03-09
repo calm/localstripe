@@ -28,8 +28,9 @@ from .resources import Charge, Coupon, Customer, \
     Event, Invoice, InvoiceItem, PaymentIntent, \
     PaymentMethod, Plan, Price, Product, Refund, SetupIntent, \
     Source, Subscription, SubscriptionItem, TaxRate, \
-    Token, extra_apis, store
+    Token, extra_apis, store, current_namespace
 from .errors import UserError
+from .namespace_utils import get_namespace_from_api_key
 from .test_tokens import create_test_tokens
 from .seed_data import seed_data
 from .webhooks import register_webhook
@@ -193,6 +194,12 @@ async def auth_middleware(request, handler):
     if not is_auth:
         raise UserError(401, 'Unauthorized')
 
+    # Set namespace from API key (if present)
+    api_key = get_api_key(request)
+    if api_key:
+        namespace = get_namespace_from_api_key(api_key)
+        current_namespace.set(namespace)
+
     return await handler(request)
 
 
@@ -306,16 +313,42 @@ async def config_webhook(request):
 
 
 async def flush_store(request):
-    store.clear()
+    ns = current_namespace.get()
+    store.clear_namespace(ns)
+    # Next access will re-clone from template automatically
     create_test_tokens()
+    return web.Response()
+
+
+async def flush_namespace(request):
+    """DELETE /_config/data/{namespace} - clear a single namespace."""
+    namespace = request.match_info['namespace']
+    store.clear_namespace(namespace)
+    return web.Response()
+
+
+async def flush_all_namespaces(request):
+    """DELETE /_config/namespaces - clear all namespaces."""
+    store.clear_all_namespaces()
     return web.Response()
 
 
 app.router.add_get('/ping', healthcheck)
 app.router.add_post('/_config/webhooks/{id}', config_webhook)
 app.router.add_delete('/_config/data', flush_store)
+app.router.add_route('DELETE', '/_config/data/{namespace}', flush_namespace)
+app.router.add_route('DELETE', '/_config/namespaces', flush_all_namespaces)
 
+async def init_tokens(app):
+    create_test_tokens()
+
+app.on_startup.append(init_tokens)
 app.on_startup.append(seed_data)
+
+async def snapshot_store(app):
+    store.snapshot_template()
+
+app.on_startup.append(snapshot_store)
 
 def start():
     parser = argparse.ArgumentParser()
@@ -341,7 +374,6 @@ def start():
 
     app['seed_dir'] = os.environ.get('SEED_DIR', 'fixtures')
 
-    create_test_tokens()
     web.run_app(app, sock=sock, access_log=logger)
 
 if __name__ == '__main__':

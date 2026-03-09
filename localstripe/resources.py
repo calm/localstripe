@@ -27,6 +27,7 @@ import time
 from dateutil.relativedelta import relativedelta
 
 from .errors import UserError
+from .namespaced_store import NamespacedStore, current_namespace
 from .webhooks import schedule_webhook
 
 
@@ -66,7 +67,7 @@ class Store(dict):
         self.dump_to_disk()
 
 
-store = Store()
+store = NamespacedStore()
 
 
 def random_id(n):
