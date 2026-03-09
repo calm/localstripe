@@ -216,18 +216,88 @@ Only those events types are currently supported:
 - Invoice: ``invoice.created``, ``invoice.payment_succeeded`` and
   ``invoice.payment_failed``
 
+Disable disk persistence
+------------------------
+
+By default, localstripe writes all state to ``/tmp/localstripe.pickle`` on every
+mutation. In test/CI environments where you don't need data to survive restarts,
+disable this for a significant performance boost:
+
+.. code:: shell
+
+ localstripe --no-persist
+
+or with Docker:
+
+.. code:: shell
+
+ docker run -p 8420:8420 your-image localstripe --no-persist
+
+Parallel test isolation
+-----------------------
+
+When running multiple test suites in parallel against a single localstripe
+instance, you need each suite to have its own isolated data. Localstripe
+supports this via **namespaced API keys**.
+
+**How it works:** Use an API key matching the pattern
+``sk_test_ns_{your-id}_key``. Each unique ID gets its own isolated copy of the
+data store — customers, subscriptions, payment methods, webhooks, and everything
+else. Suites using different IDs cannot see or interfere with each other.
+
+A standard key like ``sk_test_12345`` (without ``_ns_``) uses the ``default``
+namespace, so existing setups continue to work unchanged.
+
+**Generate a unique key per test run:**
+
+.. code:: python
+
+ import uuid
+
+ namespace = uuid.uuid4().hex[:8]
+ stripe.api_key = f'sk_test_ns_{namespace}_key'
+ stripe.api_base = 'http://localhost:8420'
+
+.. code:: javascript
+
+ const ns = crypto.randomInt(2 ** 32).toString();
+ const STRIPE_KEY = `sk_test_ns_${ns}_key`;
+
+**Seed data:** Every namespace automatically receives a fresh deep copy of the
+seed/fixture data on first access. Mutations in one namespace never affect
+another.
+
+**Webhooks** are also scoped per namespace — a webhook registered with one
+namespaced key only receives events triggered by that same namespace.
+
+**Clean up after a test run:** Delete a single namespace when your suite
+finishes:
+
+.. code:: shell
+
+ curl -X DELETE localhost:8420/_config/data/my_namespace_id
+
+Or clear all namespaces at once (useful between full CI runs):
+
+.. code:: shell
+
+ curl -X DELETE localhost:8420/_config/namespaces
+
 Flush stored data
 -----------------
 
-Flushing data programmatically can be useful to reset localstripe if your are
+Flushing data programmatically can be useful to reset localstripe if you are
 using it with any test framework.
 
-Flushing stored data can be performed using the ``/_config/data`` route
-with DELETE http method:
+Flush the current namespace (or the default namespace if no ``_ns_`` key is
+used):
 
 .. code:: shell
 
  curl -X DELETE localhost:8420/_config/data
+
+To flush a specific namespace or all namespaces, see
+`Parallel test isolation`_ above.
 
 Hacking and contributing
 ------------------------
