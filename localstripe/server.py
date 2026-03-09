@@ -321,9 +321,13 @@ def start():
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=8420)
     parser.add_argument('--from-scratch', action='store_true')
+    parser.add_argument('--no-persist', action='store_true',
+                        help='Disable pickle-to-disk persistence')
     args = parser.parse_args()
 
-    if not args.from_scratch:
+    store._persist = not args.no_persist
+
+    if not args.from_scratch and store._persist:
         store.try_load_from_disk()
 
     # Listen on both IPv4 and IPv6
